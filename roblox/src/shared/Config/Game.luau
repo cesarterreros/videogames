@@ -13,6 +13,9 @@ export type GameConfig = {
 	RemoteDefaultRate: number,
 	RemoteDefaultBurst: number,
 	AnomalyThresholdPerMinute: number,
+	DevStudioSeedTopUp: number,
+	RenderTickSeconds: number,
+	DevUniverseId: number,
 }
 
 local Game: GameConfig = {
@@ -27,6 +30,13 @@ local Game: GameConfig = {
 	RemoteDefaultRate = 8,
 	RemoteDefaultBurst = 12,
 	AnomalyThresholdPerMinute = 50,
+	-- Studio only (never live): the Quartz count a bag is topped up to on load, for testing before the shop exists.
+	DevStudioSeedTopUp = 5,
+	-- How often the client re-checks growing crystals, in seconds; the scale is tweened between checks.
+	RenderTickSeconds = 0.25,
+	-- The separate "Crystal Grove DEV" universe (game.GameId). Dev-only tools such as the crystal
+	-- stress test also run there, so they can be measured on a real phone; never in the live universe.
+	DevUniverseId = 10777641396,
 }
 
 return Game

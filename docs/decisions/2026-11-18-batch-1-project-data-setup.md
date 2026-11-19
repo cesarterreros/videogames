@@ -1,6 +1,6 @@
 # Specification: Batch 1, project setup and core data architecture
 
-Status: approved 2026-11-18. Verified in Studio Play Solo on the dev experience 2026-11-18; open: 2-player check and phone session-lock check.
+Status: approved 2026-11-18. Verified in Studio Play Solo on the dev experience 2026-11-18; the open 2-player, `[Remote] rejected` and phone session-lock checks passed in batch 2's verification (see its Outcome).
 
 ## Context
 
