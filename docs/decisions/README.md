@@ -29,6 +29,29 @@ In this order:
 
 Skill defaults: Haiku for small, fully specified edits; DeepSeek Flash for standard implementation and tests; DeepSeek Pro only for the hardest cross-file task. DataStore/session-locking code and anything security-critical (remote validation, receipt processing) stays with the orchestrator.
 
+### Delegation lessons (from batch 1)
+
+- **DeepSeek's shell is `cmd.exe`, not bash.** Give it this command for tests: `set PATH=C:\Users\<you>\.rokit\bin;%PATH% && cd /d C:\Projects\videogames\roblox && lune run tests`. Find `<you>` locally; don't write it in the records.
+- **Tell DeepSeek to write each file in one Write call.** Batch 1's test-runner job ran out of turns (50) doing stub-then-small-Edits.
+- **One DeepSeek job at a time per workspace.** After each job: `get_deepseek_recovery`, review the files, run the tests, then `acknowledge_deepseek_mutations` with the exact IDs.
+- **Haiku subagents** do well with fully specified files (exact content or exact tables). Give them the contract text itself, not a pointer to a record.
+- **Test style:** `expect(x):toBe(y)` (colon calls), `expect(x).never:toBe(y)`. "No require" checks must search for a call (`require%s*[%(\"']`), not the bare word, because comments may mention it.
+
+## Starting a new session
+
+Each batch is implemented in its own Claude session. Start every session like this:
+
+1. **Read, in order:** this README; the batch's own record (its **Context for a new session** section lists everything else to read); then the **Findings**, **Progress** and **Outcome** sections of earlier batch records, which may correct their plans.
+2. **Environment (Windows, Git Bash):**
+   - Tools: `export PATH="$HOME/.rokit/bin:$PATH"` (Rojo 7.7.1, Lune 0.11.1, StyLua 2.6.0, pinned in `roblox/rokit.toml`).
+   - Tests: `cd roblox && lune run tests`.
+   - Format: `stylua src tests` (skip `src/server/Vendor`).
+   - Build check: `rojo build -o <scratchpad>/test.rbxlx`.
+   - Sync: run `rojo serve` in the background; you then click **Connect** in Studio's Rojo panel (the plugin is already installed).
+   - Studio: the experience is **"Crystal Grove DEV"** (separate dev universe, Studio API access on). In this Studio version, Output is under **Window → Output**.
+3. **Git:** branch from the previous batch's branch as `batch-N-short-name`. Commit only when the user asks. Before committing, scan for personal data (email, name, Roblox user ID or username, `C:\Users\…` paths, keys and tokens).
+4. **Workflow rules from the user:** no code until the batch plan is approved. A plan's `Status:` line says whether it is approved; if a finding changes an approved plan, re-confirm with the user before coding. End each step with one focused question. Results go in the record (Findings, Progress, Outcome); report only verified checks as passed.
+
 ## Extra rules
 
 - **No copyrighted material:** no names, characters, art, music, or UI that copies another game. Only self-made or Roblox-licensed assets.

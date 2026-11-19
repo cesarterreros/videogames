@@ -1,0 +1,189 @@
+# Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
+
+Status: approved 2026-11-18. Not started; implemented in its own session.
+
+## Context
+
+After batch 5 ([record](2026-11-18-batch-5-monetization.md)), the game is complete: the loop, progression, UI, tutorial and monetization all work in the **dev** experience. This last batch makes it **feel good, safe and measurable**, then **publishes it** to a new **live** experience:
+- **Polish:** juice, lighting, cave decoration, and the performance settings from the batch 2 proof.
+- **Analytics audit:** every event from the MVP and monetization specs, verified in the Creator Dashboard.
+- **Anti-exploit review:** a fuzz test of every remote.
+- **Admin command:** a dev-only command so you can test quickly.
+- **Launch checklist:** built from the MVP's "Acceptance criteria for launch" and Step 5's thumbnails.
+
+It follows the architecture build-order item 12. The 14-day launch and iteration plan (Step 8) is a separate document written after this batch, and it isn't code.
+
+### Context for a new session (read before task 1)
+
+1. [README.md](README.md): **Starting a new session** and **Delegation lessons**.
+2. This record.
+3. The [MVP spec](2026-11-18-crystal-grove-mvp.md): "Acceptance criteria for launch", "Analytics events and success metrics", "Sound and visual style", "Map and layout" (the performance budget), and the Amendment on truthful odds.
+4. The [monetization spec](2026-11-18-crystal-grove-monetization.md): "Guardrails", the analytics events, and the "Price and offer testing after launch" week-1 rule.
+5. The [architecture spec](2026-11-18-crystal-grove-architecture.md): "Remote security rules", "Anti-exploit considerations", "Analytics events".
+6. **All earlier batch records:** especially the batch 2 **performance-proof findings** (the FPS numbers and which fallbacks were needed), and every Outcome's **Not verified** and **Leftovers** lists. Close them here or carry them over explicitly.
+7. **Step 5 (thumbnails and ads)** lives in the conversation, not a record. The thumbnail concepts are: **A** "COLOSSAL!" (a small avatar under a giant rainbow crystal), **B** "1 in 333,000" (a cracking Prismatic crystal), **C** "MY CRYSTAL CAVE", **D** "SHATTER = 💰" (mid-explosion), **E** "BIGGEST CRYSTAL WINS". Launch with **A, B, D**. Rules:
+   - 16:9, 1920 × 1080;
+   - nothing important in the bottom strip;
+   - at most 3 words;
+   - real in-game scenes only;
+   - odds must be true.
+
+   The icon is a 512 × 512 Prismatic crystal on dark purple, with no text.
+8. **Code:** the whole `roblox/src` tree. This batch reviews all of it.
+9. **Starting state:** the batch 5 branch is committed; tests pass. Create `batch-6-polish-launch`.
+
+### Outside facts
+
+To check in official docs in task 1, recording the URL and date:
+- `TextChatService` + `TextChatCommand` (`PrimaryAlias`, `Triggered`): on which side does `Triggered` fire, and can the server create commands?
+- `Lighting` effects: `Atmosphere`, `ColorCorrectionEffect`, `BloomEffect`.
+- The Creator Dashboard steps for: **Maturity & Compliance Questionnaire**; **server size** (Places → Server Size); **experience thumbnails** (Configurations → Places → Thumbnails → Home Page tab, 2–5 active for personalization); **Managed Pricing** (default enrollment); **Rewarded Video** (Monetization → Ads, which shows eligibility).
+- Analytics: how long until custom, economy and funnel events appear in the dashboard.
+
+## Behaviour
+
+### Polish (what players notice)
+- **Coins fly from the shattered crystal to the HUD counter:** 6–12 coin icons over 0.5 s, and the counter ticks up as they arrive.
+- **Shatter feel:**
+  - shards come in the crystal's colour, with a mutation tint;
+  - Huge crystals shake the camera for 0.2 s, Colossal for 0.4 s;
+  - a short white flash for Prismatic.
+- **Ready crystals:** a soft pulsing glow ring on the pedestal.
+- **Lighting:**
+  - **Atmosphere:** density 0.35, a blue-purple tint.
+  - **ColorCorrection:** saturation +0.1, contrast +0.05.
+  - **Bloom:** intensity 0.8, size 24, threshold 1.1.
+  - ClockTime and the ambient colours are tuned so that crystals are the main light, while the UI stays readable.
+- **Cave decoration, built by code:**
+  - 8–12 rock stalagmites per cave, using **seeded positions** so every server looks the same;
+  - 3 small decorative crystal clusters on each cave's walls (Neon only, no lights);
+  - a glowing path from the hub to each cave mouth.
+- **Graphics quality:** `Config/Graphics.luau` holds the fallbacks the batch 2 proof showed were needed:
+  - `LightsMinTier`;
+  - `ParticleRate` multiplier;
+  - `GlassShell` on/off.
+
+  These also lower themselves automatically when the player's graphics quality setting is low.
+
+### Admin command (development only)
+- **Who can use it:** only in **Studio**, or in the **dev experience** for the experience's owner (`game.CreatorType == Enum.CreatorType.User` and `player.UserId == game.CreatorId`). **It never works in the live experience**, which is checked against `IdsByGameId` (the live `GameId`).
+- **Chat commands** (`/cg …`), each replying with a system message:
+
+  | Command | Effect |
+  |---|---|
+  | `/cg coins <n>` | Set your coins to n |
+  | `/cg seeds <seedId> <n>` | Add n seeds |
+  | `/cg ready` | Make all your growing crystals ready |
+  | `/cg tutorial reset` | `Tutorial = {Step = 0, Done = false}` |
+  | `/cg daily reset` | Clear the streak and goal dates so you can claim again |
+  | `/cg tier <n>` | Set your highest unlocked tier |
+  | `/cg wipe` | Reset your profile to the template |
+
+- **Logging:** every admin action logs a `LogCustomEvent("Admin", …)` and prints to the Output.
+
+### Anti-exploit hardening
+- **A fuzz script** (`roblox/dev/FuzzClient.client.luau`, **outside the Rojo project tree**, so it is never synced or published) is pasted into a Studio client for testing. For 60 s it fires every ToServer remote with random junk: wrong types, NaN, huge numbers, other players' pedestals, nil, tables and long strings.
+  - **Expected:** no server errors from our code, no data change (the coins and seed counts are compared before and after), and the server keeps running.
+- **A review checklist** (task 4) is applied to every handler and recorded as a findings table, one row per remote:
+  - the remote validates its arguments;
+  - it acts only on the caller's own data or plot;
+  - it never uses client-sent amounts;
+  - it grants only after checks;
+  - it can't pay twice.
+- **Rate-limit tuning:** the per-remote `Rate`/`Burst` values are adjusted if the fuzz or play tests show honest players being rejected.
+
+### Analytics audit
+- **Event table:** every event from the MVP and monetization specs, with the file and line that logs it; a dashboard screenshot proves each one arrived.
+- **Limits:** at most 10 funnels (we use 2: onboarding and FirstPurchase), at most 5 currency types (we use 1: "Coins"), at most 20 transaction types, at most 100 SKUs.
+- **`SessionEnd`** (minutes played) is logged on `PlayerRemoving`.
+
+### Launch (live experience)
+1. **Create the live experience "Crystal Grove 💎"** (Studio: File → Publish As → Create new experience), separate from DEV. **Studio API access stays OFF** for live.
+2. **Server size 6.**
+3. **Genre and description.** The description is written in task 8, with no promotional claims and true odds.
+4. **Maturity & Compliance Questionnaire** completed. It is also required later for rewarded ads.
+5. **Create the 5 passes and 10 products in the live experience** (same names and prices as the monetization spec, free trials off), and put the live IDs in `IdsByGameId`.
+6. **Icon** (512 × 512) and thumbnails **A, B, D** (1920 × 1080) made from real in-game Studio screenshots; thumbnail personalization turned on with those 3.
+7. **Publish:** run `rojo build -o CrystalGrove.rbxlx`, open the file in Studio, then File → Publish to the live experience. The template Baseplate and SpawnLocation must be absent.
+8. **Playtest on phones:** 2–3 people for 15 minutes, using the launch acceptance list below.
+9. **Make it public** only after every launch acceptance criterion passes. **You do this step yourself.**
+
+## Not included
+
+- **The Step 8 launch and iteration plan:** a separate document after this batch.
+- **Paid ads** (Roblox sponsored campaigns, TikTok, Shorts): started only after D1 retention is at least 10%, per Step 5.
+- **Rewarded ads going live:** automatic once Roblox marks the experience eligible (about 2,000 monthly visitors). No code is needed.
+- **New content** (more seeds, events, leaderboard prizes): v1.1, decided by data.
+- **Translations.**
+
+## Design
+
+**Stored data:** no schema change. The `/cg wipe` command resets *your* profile to the template in the **dev** experience only.
+
+### Files
+
+| File (under `roblox/` unless rooted) | Change | Task |
+|---|---|---|
+| `src/shared/Config/Graphics.luau` | New | 2 |
+| `src/client/Controllers/EffectsController.luau`, `CrystalRenderer.luau`, `UI/Screens/Hud.luau` | Coin fly, shake tuning, glow ring, graphics config | 2 |
+| `src/server/Services/MapService.luau` | Lighting values, cave decoration, hub paths | 3 |
+| `dev/FuzzClient.client.luau` | New, **not in `default.project.json`** | 4 |
+| `src/server/Services/*` | Hardening fixes found by the review | 4 |
+| `src/server/Services/AdminService.luau` | New | 5 |
+| `src/server/Services/Analytics.luau` and callers | `SessionEnd`, and gaps found by the audit | 6 |
+| `docs/launch-checklist.md` | New: the checklist with ✅ / ❌ and evidence for each item | 7 |
+| `docs/store-listing.md` | New: title, description and genre text (no personal data) | 8 |
+
+## Task breakdown and model assignment
+
+| # | Task | Model | Why this model | Depends on |
+|---|---|---|---|---|
+| 0 | Branch and save the record status | Orchestrator | — | — |
+| 1 | **Proof:** check the "Outside facts" items; read the batch 2 performance findings and set the `Graphics` defaults from them | Orchestrator | Judgment | 0 |
+| 2 | Polish: Graphics config, coin fly, shake, glow ring | DeepSeek Flash (2 jobs: Effects + Hud; Renderer + Graphics) | Visual code | 1 |
+| 3 | Lighting and cave decoration in MapService | DeepSeek Flash | Geometry code | 1 |
+| 4 | Fuzz script; a per-remote review table; hardening fixes | Orchestrator (the fuzz script can go to DeepSeek Flash) | Security review stays with the orchestrator | 1 |
+| 5 | `AdminService` | Orchestrator | Changes data; permission checks | 1 |
+| 6 | Analytics audit and fixes | Orchestrator | Cross-file judgment | 2–5 |
+| 7 | `docs/launch-checklist.md` | Orchestrator | — | 6 |
+| 8 | Store listing text; the thumbnails and icon from in-game screenshots | Orchestrator (text) + you (images) | You own the art and the account | 3 |
+| 9 | Live experience setup (launch steps 1–6) | You, guided step by step | Your account | 7, 8 |
+| 10 | Phone playtest (launch step 8); fix blockers | You + orchestrator | — | 9 |
+| 11 | Final review, tests, outcome; you decide to make it public | Orchestrator + you | — | 10 |
+
+Escalation: as in earlier batches. **If the playtest finds a blocker**, fix it in this batch as an amendment, and publish only when the checklist is all ✅.
+
+### Acceptance criteria (the launch checklist; every item needs evidence)
+
+- **Core loop:** a new player finishes the tutorial in 75 s or less on a phone without instructions.
+- **Saving:**
+  - coins, seeds, pedestals, codex, streak and growing crystals survive a rejoin and a server shutdown;
+  - joining a second server while the first is saving loses or duplicates nothing (phone plus PC test).
+- **Offline growth:** a crystal planted before leaving is ready on return after its grow time.
+- **Fairness:** a code search confirms that no pass or product touches `SizeRoll` or overgrowth, and that instant-grown crystals never reach the leaderboard.
+- **Security:** the 60-second fuzz run causes no data change and no server error from our code; every row of the review table passes.
+- **Leaderboard:** a new weekly best appears on the hub board within 2 minutes, in the correct week's store.
+- **Performance:** at least 30 FPS on a real mid-range phone with 6 full caves (stress mode).
+- **Monetization:** all 5 passes and 10 products exist in the **live** experience and pass a real 9 R$ purchase test; ad buttons are hidden while ads are unavailable.
+- **Analytics:** the onboarding funnel (8 steps), economy events and the custom events are visible in the dashboard from a test session.
+- **Content:**
+  - no copyrighted names or assets; all audio is licensed from Roblox or made by you;
+  - the maturity questionnaire is complete;
+  - the thumbnail and description odds are true;
+  - **no personal data in the repo or the store listing.**
+- **Dev features off in live:** stress mode, the seed top-up and the admin command don't work in the live experience. Each is checked by trying it in the published live build before going public.
+- **Tests:** `lune run tests` passes, StyLua is clean, and the build succeeds.
+
+## Verification
+
+- **Automated tests:** all earlier specs, plus `Graphics.spec` (the config shape) and `Admin.spec` (pure command parsing, if parsing is split into `Logic/AdminCommands.luau`).
+- **Backup first:** before `/cg wipe` is ever used, note that it affects only the dev profile. The live experience starts with no data.
+- **Studio:** polish checks by eye; the fuzz run; admin commands in Studio.
+- **Device emulator:** the UI after the polish (coin fly over the HUD on iPhone SE).
+- **Real phones (live experience, still private):** the full checklist with 2–3 people.
+
+## Decisions (confirmed by the user 2026-11-18, recommended options chosen)
+
+1. **The admin command is disabled in the live experience entirely.** Rejected: owner-only admin in live, which is useful for support but is a risk if the check is ever wrong.
+2. **The fuzz script lives outside the Rojo project** (`roblox/dev/`), so it can never ship. Rejected: an in-game Studio-only toggle, which is easier to run but is code that ships.
+3. **You flip the game to Public yourself,** after the checklist is all ✅. Rejected: going public as part of the batch.
