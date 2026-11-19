@@ -1,6 +1,6 @@
 # Specification: Batch 2, core gameplay loop (map, caves, plant, grow, shatter)
 
-Status: approved 2026-11-18. Not started; implemented in a separate session (see Progress).
+Status: approved 2026-11-18. Built and verified 2026-11-18 (Studio Play Solo, 2-player local server, Device Simulator, phone stress test and session lock on the published DEV experience). See Outcome.
 
 ## Context
 
@@ -264,3 +264,130 @@ Escalation:
 
 - You asked for every batch plan to be written before any implementation, so that each batch can be built in **its own new session** to save context. Batch 2 is implemented in a fresh session that starts with the steps in [README.md → Starting a new session](README.md#starting-a-new-session).
 - **Before task 1, read:** this record; [README.md](README.md); the batch 1 record's **Task 1 findings**, **Progress** and **Outcome**; and the code files this plan changes (`Main.server.luau`, `Main.client.luau`, `Strings/en.luau`, `Config/Game.luau`), plus `Services/DataService.luau` and `Services/RemoteService.luau` for the APIs used (`DataService.ProfileLoaded`, `:GetData`, `:SyncState`, `RemoteService:On`, `:Fire`).
+
+### Implementation progress (2026-11-18, implementation session)
+
+**Code for tasks 1–8 is written and reviewed. Tasks 9 (stress proof) and 10 (Studio checks) need you in Studio.** Branch: `batch-2-core-loop` (from `batch-1-setup`).
+
+| Task | Files | Written by | Review |
+|---|---|---|---|
+| 1 | `/.gitattributes`, `Strings/en`, `Config/Game` | Orchestrator | `git add --renormalize .` changed nothing (every file was already LF) |
+| 2 | `Logic/Growth`, `Logic/Rolls`, `tests/Growth.spec`, `tests/Rolls.spec` | DeepSeek Flash | Accepted first time (17 + 11 tests; seeded xorshift32, 1,000,000 rolls per distribution) |
+| 3 | `Services/MapService` | DeepSeek Flash | Accepted; orchestrator fixed one wrong comment and added `MapService.setPedestalLook` |
+| 4 | `Services/PlotService` | DeepSeek Flash | Accepted first time |
+| 5 | `Services/CrystalService`, `Main.server` order | Orchestrator | Self-review added a catch-up loop in `Start` (PlotService's own catch-up can fire `PlotAssigned` before CrystalService connects) |
+| 6 | `Controllers/CrystalBuilder` | DeepSeek Flash | Accepted first time (tilt direction checked by hand: tops lean outward) |
+| 7 | `Controllers/CrystalRenderer`, `Controllers/CrystalVisuals` | DeepSeek Flash, **cut off once** (one response too long, nothing written); retried with the file split in two | Orchestrator fixed 2 defects: a new crystal could ease toward the previous crystal's scale for up to 0.25 s; stress mode skipped the 4 Hz tick, so Prismatic hues didn't cycle under load |
+| 8 | `Controllers/EffectsController`, `Main.client` order | DeepSeek Flash; order by orchestrator | Accepted; removed one unused require |
+
+**Changes from the plan:**
+- **New file `Controllers/CrystalVisuals.luau`:** mutation lights and particles, the countdown label and the scale curve, split out of `CrystalRenderer` so each DeepSeek write fit in one response.
+- **New pure helper `Format.countdown(seconds)`** ("0:17", "1:02:05", rounded up) with 1 test, so the label text is unit-tested.
+- **`MapService.setPedestalLook(pedestal, unlocked)`:** one place for the dim/bright pedestal colour, used by PlotService (reset on leave) and CrystalService (unlock state on join).
+- **`Growth.shatterValue` floors `x + 1e-9`**, so float products such as 17.9999999 don't lose a coin. Tested.
+- **Carats are rounded to 2 decimals** before the weekly-best comparison and in `ShatterResult` (the leaderboard stores carats × 100).
+- **A planted seed with count 0 is removed from `SeedBag`** instead of kept as 0.
+- **Prisms are blocks, not true hexagons:** each prism is a Neon block core plus a Glass block shell turned 22.5° against it, which reads as many-sided. Roblox has no hexagonal part, and real hexagons would need 6+ parts per prism.
+- **Client effects:** temporary parts live in a client-only `workspace.ClientEffects` folder.
+
+**Checks run:**
+- `lune run tests`: **93 passed, 0 failed** (64 existing + 29 new).
+- `stylua --check` (src without Vendor, tests): clean.
+- `rojo build`: succeeds.
+- **No check in Studio yet.** Nothing in tasks 3–8 has run in Roblox.
+
+### Studio verification (2026-11-18, verification session)
+
+Run with the Roblox Studio MCP in Play Solo on "Crystal Grove DEV", after reconnecting the Rojo plugin (the old connection was open but hadn't synced any batch 2 file).
+
+**Play Solo checks:**
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Moved into a cave with your name; 3 pedestals bright, 10 dim | **Passed.** Plot_1, sign shows the display name, character 2 studs from `SpawnPoint`; pedestals 1–3 `Unlocked=true` and bright, 4–13 dim; Plot_2–6 `OwnerUserId=0`. Prompts exist only on your 3 unlocked pedestals. |
+| 2 | Plant → countdown from about 0:20, grows, "READY!" and pulse | **Passed after a fix** (see Findings). `ReadyAt − PlantedAt = 20`, label read "0:19" right after planting, the prompt hides while growing, the crystal grew, and "READY!" appeared with a pulse (bounding-box height 3.50 → 3.79 studs over 0.9 s). |
+| 3 | Shatter → shards, "+N" (N ≥ 15), `[State]` coins up by N | **Passed.** `[Shatter] pedestal=1 +15 coins 1.05 ct None Normal`, `[State]` coins 0 → 15; a second run gave a "+15" label and coins 15 → 30. The crystal is removed, the prompt goes back to "Plant", and the effect parts were gone within about 1.25 s (inside 1.5 s). |
+| 4 | Plant, Stop before ready, wait 30 s, Play → shown ready | **Passed.** After Play the pedestal kept its `ReadyAt`, the crystal showed "READY!", and the prompt was "Shatter". |
+
+The Studio top-up worked (`Quartz 1 -> 5`, and `3 -> 5` on the next join).
+
+**Stress test (Studio, PC):** `StressTest` on → 78 crystals, 920 crystal parts, 78 PointLights, 78 emitters. **60 FPS** before and after (worst frame about 22 ms) from the player camera in the cave, and 60 FPS from a scripted high camera. It's **not confirmed** that all 78 crystals were on screen in that second reading: the screenshot didn't show the scripted camera, and the cave walls block the view. The PC number isn't the target. **The phone reading (target ≥ 30 FPS) is still open.**
+
+**Findings:**
+- **Fixed: the countdown/"READY!" label sat 7.5 studs beside the pedestal.** `BillboardGui.StudsOffsetWorldSpace` is measured along the adornee's own axes, and pedestals are cylinders rolled 90° on Z (their up vector is world −X). `CrystalVisuals.makeLabel` now converts world-up with `pedestal.CFrame:VectorToObjectSpace(...)`. A screenshot confirmed the label above the crystal. Tests (93/93), StyLua and `rojo build` still pass.
+- **The caves are very dark.** Pedestals and the character are barely visible outside the crystals' glow (Lighting `ClockTime=0`, low Ambient). This is a look decision for you, not a defect.
+- **`ContentId: rbxassetid://203785492 failed … Asset type does not match` (3× on every join)** comes from outside our code: no instance in Workspace, Lighting, the player, ReplicatedStorage or SoundService references it, and the ID isn't in `src`. Probably the avatar or Studio itself. Left alone.
+
+**Local server, 2 players** (Test → Start Test Session → Server and Clients, then Test → Add Clients; checked through the MCP in each client window):
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Different caves with their own names | **Passed.** Player1 → Plot_1, Player2 → Plot_2; each sign shows its own name; both characters 2 studs from their `SpawnPoint`. |
+| 2 | A sees no prompts in B's cave | **Passed.** Player1's client has prompts only on Plot_1 pedestals 1–3; Player2's only on Plot_2 pedestals 1–3. |
+| 3 | A fires `Shatter(1)` while B has a ready crystal on pedestal 1 → rejected, B's crystal stays | **Passed.** Player2's crystal kept `SeedId=Quartz`, its `ReadyAt` and its model. No log line: the handler only reads the caller's own data, so the request meant "Player1's pedestal 1" (empty) and did nothing. A client can't address another player's cave at all. |
+| 4 | Both see each other's crystals grow | **Passed.** Player1 saw Player2's crystal grow 3.00 → 3.53 studs with the countdown; Player2 saw Player1's grow 1.70 → 2.81. |
+| 5 | `[Remote] rejected …` lines (open from batch 1) | **Passed.** `rejected Shatter … expected number, got string`, `… above 13`, `rejected Plant … too many arguments (3 > 2)`, `rejected Shatter … not a finite number`. |
+
+Test note: in an unfocused client window, ProximityPrompts don't show (`PromptShown` never fires), so `InputHoldBegin` can't trigger them. Those plants were sent as `Remotes.Plant:FireServer(index, "Quartz")`, the same call the prompt makes. Prompt triggering itself was already checked in Play Solo.
+
+**Device Simulator (phone, landscape; Play Solo, viewport 685×338, touch input):**
+- **Prompts can be tapped: passed.** You tapped Plant and Shatter by hand ("easy to hit"); the server logged 2 plant/shatter loops on pedestal 3 (+15, +19; coins 30 → 64). The prompt's tap area is 72×72 points.
+- **Countdown readable: passed after a change.** Readable at 4 × 1.2 studs but small (about 19 px tall on the phone), so the label is now **6.5 × 2 studs** (you confirmed "right size") and sits **8.5 studs** above the pedestal centre (was 7.5) to clear larger crystals.
+- Test note: my simulated clicks couldn't do this. With VS Code focused, the Studio viewport stopped redrawing and the prompt wasn't drawn.
+
+**Fixed: the label now follows the crystal's top** (your decision, 2026-11-18). A fixed 7.5–8.5-stud offset couldn't fit both ends: crystal height is `3 + tier × 0.3` studs, overgrowth scales it up to 1.5× (× 1.04 pulse), and an overgrown tier-10 crystal reached 10.8 studs above the pedestal centre, past the label's bottom edge. Now:
+- `CrystalRenderer` records each model's height at scale 1 when it's built. On every 4 Hz tick (and right after a refresh) it places the label at pedestal top + height × scale + 1.5 studs. For a ripe crystal the scale is `(1 + overgrowth) × 1.04`, the pulse's peak, so the label doesn't bob. The label is only moved when its height changes by more than 0.05 studs.
+- `CrystalVisuals.placeLabel(gui, pedestal, height)` holds the axis conversion. `makeLabel` starts the label at 8.5 studs until the first placement.
+- Measured in Studio (gap = label bottom − crystal top): overgrown Voidheart (tier 10, ripe 10 h, set as display-only attributes) **+1.34** (was −3.31); ripe Quartz +0.85 to +1.18; growing Quartz +0.69 to +0.91 at each of 7 samples. A screenshot shows both labels above their crystals.
+- Stress on/off made no difference (14.9 FPS both ways). That run was capped at about 15 FPS because Studio's window wasn't focused, so it says nothing about absolute performance. The 60 FPS PC reading above was taken earlier, before this change.
+
+Tests 93/93, StyLua and `rojo build` pass after these changes.
+
+**Plan change (confirmed by you 2026-11-18): stress mode also runs in the DEV universe.** As planned it worked only in Studio (`RunService:IsStudio()`), so the phone reading the plan asks for was impossible. The client now also accepts `StressTest` when `game.GameId == GameConfig.DevUniverseId` (new constant `10777641396`, the "Crystal Grove DEV" universe), never in the live universe. To switch it on from a phone: chat `/console` → Server command line → `workspace:SetAttribute("StressTest", true)`. The attribute replicates to your client, which prints `[Stress] fps=N crystals=78` every 2 s in the Client log. Rejected: phone FPS with only your own 3 crystals; Device Simulator reading only. Tests 93/93, StyLua and `rojo build` pass.
+
+**Published DEV experience, phone (portrait), 2026-11-18:**
+- **Stress proof: passed.** `StressTest` switched on from the phone's developer console (Server command line). 30 `[Stress]` readings over 60 s: **57–60 FPS with 78 crystals** (target ≥ 30). Client memory 664–771 MB. No MVP fallback needed (PointLights, particle rates and Glass shells stay as built).
+- **Phone screenshots:** the "READY!" label sits above the crystal, and the Quartz/Shatter prompt shows and works.
+- **Session lock (open from batch 1): passed.** DataStore read from Studio (read-only): `Sessions` 11 → 12 after the PC join, then **12 → 13** after the phone join, which dropped the PC session ("Same account launched experience from different device", error 276). The profile was locked by the phone's server and saved normally: coins 116 → 137 → 173 from your shatters, and the pedestal 1 crystal persisted.
+
+**All batch 2 checks are done.**
+
+## Outcome (2026-11-18)
+
+- **Built as specified**, with these differences (details in **Implementation progress** and **Studio verification** above):
+  - **New file** [CrystalVisuals.luau](../../roblox/src/client/Controllers/CrystalVisuals.luau), split out of `CrystalRenderer` so each delegated write fit in one response. **New helpers:** `Format.countdown` and `MapService.setPedestalLook`.
+  - **Prisms are blocks** (a Neon core inside a Glass shell turned 22.5°), not true hexagons.
+  - **The countdown label** is 6.5 × 2 studs (you chose the size in the phone simulator) and follows the crystal's top. It was planned as a fixed label 7.5 studs up; that fixed offset was buggy (sideways on the rolled cylinder pedestals) and too low for overgrown high-tier crystals.
+  - **Stress mode also runs in the DEV universe** (`GameConfig.DevUniverseId`), never live, so it could be measured on a real phone (your decision, 2026-11-18).
+- **Who did what:**
+  - **DeepSeek Flash** wrote tasks 2, 3, 4, 6, 7 and 8. Accepted first time: 2, 4, 6 and 8 (one unused require removed). Task 3: a comment fixed and one helper added. Task 7 was cut off once (one response too long, nothing written) and succeeded after the file was split. Review fixed 2 defects: a new crystal easing toward the old crystal's scale, and Prismatic hues not cycling under stress.
+  - **The orchestrator** wrote tasks 1 and 5: `CrystalService`, which holds the coin and validation rules. In the verification session it also wrote the label fixes and the DEV-universe gate.
+  - Nothing went to DeepSeek Pro.
+- **Tests:** `lune run tests` gives **93 passed, 0 failed** (64 existing + 29 new). `stylua --check` is clean, and `rojo build` succeeds with no warnings.
+- **Each place checked:**
+
+  | Where | What | Result |
+  |---|---|---|
+  | Studio Play Solo (dev experience) | Join, plant, grow, ready, shatter; Stop, wait 30 s, Play | All 4 passed. Coins 0 → 15 → 30 matched the logged "+15" shatters. The crystal was restored ready after the restart. |
+  | Studio local server, 2 players | Separate caves and names; no prompts in the other cave; cross-cave `Shatter(1)`; both see growth; `[Remote] rejected …` lines | All passed. Player2's crystal kept `SeedId`, `ReadyAt` and its model. There were 4 rejection lines with reasons, which closes the batch 1 leftover. |
+  | Studio Device Simulator (phone, landscape) | Tap the prompts; read the countdown | You planted and shattered by hand (2 loops, coins 30 → 64) and called the prompt "easy to hit". The label passed after the resize. |
+  | Studio, PC | Stress mode (78 crystals) | 60 FPS. |
+  | Published DEV experience, your phone | Stress mode (78 crystals) | **57–60 FPS** across 30 readings (target ≥ 30). No MVP fallback needed. |
+  | Published DEV experience, PC then phone | Session lock (batch 1 leftover) | `Sessions` 11 → 12 → **13**, exactly +1 per join. The phone's join dropped the PC session. Coins and the pedestal 1 crystal saved normally. |
+
+- **Not verified:**
+  - **Studio emulator FPS under stress.** It read 14.9 FPS with and without stress, because Studio caps its frame rate when its window isn't focused. The real-phone reading replaces it.
+  - **The PC overview reading** (60 FPS from a high camera): it isn't confirmed that all 78 crystals were on screen.
+  - **The "+N" label on screen.** It was confirmed only from logs and instance checks; the screenshot ran after the effect had already cleaned up.
+  - **`StudsOffsetWorldSpace` axis behaviour** (official-docs rule): it was established by measurement in Studio (the label moved 7.5 studs along the pedestal's local Y = world −X), not from the official docs page.
+- **Known limits:**
+  - In unfocused Studio test windows, ProximityPrompts don't show, so the 2-player plants were sent as the same `Plant` call the prompt makes.
+  - "Plant" still uses the lowest-tier seed until the batch 4 seed picker.
+- **Leftovers:**
+  - **Dev data:** in the dev DataStore your profile has `Sessions=13`, 173 coins and a Quartz crystal on pedestal 1. The 2-player test created test profiles `Player_-1` and `Player_-2`.
+  - **Dev-only tools that stay by design:** the Studio-only seed top-up, and stress mode (Studio + DEV universe).
+  - **Session leftovers:** the Rojo server started in this session is still running. `test.rbxlx` is in the session scratchpad, outside the repo. Nothing temporary is in the repo.
+- **Noticed, not changed:**
+  - **The caves are very dark** (Lighting `ClockTime=0`, low Ambient): pedestals and avatars are barely visible outside crystal glow. This is a look decision for a later batch.
+  - **`rbxassetid://203785492 … Asset type does not match`** appears 3× per join. It comes from Studio or the avatar, not our code (the same finding as batch 1).
+  - **The Rojo server from the earlier session stopped by itself** partway through verification, and Studio silently kept the old copy of one file. After any sync problem, check the script's length or content in Studio before trusting a test.

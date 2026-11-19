@@ -4,7 +4,7 @@
 local Services = script.Parent:WaitForChild("Services")
 
 -- Build order matters: later services may use earlier ones in Init/Start.
-local order: { string } = { "Analytics", "RemoteService", "DataService" }
+local order: { string } = { "Analytics", "RemoteService", "DataService", "MapService", "PlotService", "CrystalService" }
 
 local modules: { { name: string, module: any } } = {}
 for _, name in order do

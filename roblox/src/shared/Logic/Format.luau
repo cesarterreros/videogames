@@ -69,4 +69,17 @@ function Format.interpolate(template: string, params: { [string]: any }?): strin
 	return result
 end
 
+-- Countdown from remaining seconds, rounded up so it reaches 0:00 only when time is up: 17.2 -> "0:18",
+-- 62 -> "1:02", 3725 -> "1:02:05". Negative values show "0:00".
+function Format.countdown(seconds: number): string
+	local total = math.max(0, math.ceil(seconds))
+	local hours = math.floor(total / 3600)
+	local minutes = math.floor(total / 60) % 60
+	local secs = total % 60
+	if hours > 0 then
+		return string.format("%d:%02d:%02d", hours, minutes, secs)
+	end
+	return string.format("%d:%02d", minutes, secs)
+end
+
 return Format
