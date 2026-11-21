@@ -1,6 +1,6 @@
 # Specification: Batch 3, progression and saving (shop, upgrades, unlocks, codex, daily, social, leaderboard)
 
-Status: approved 2026-11-18. Implemented and verified 2026-11-21 on branch `batch-3-progression` (see Progress, Findings and Outcome); not committed yet.
+Status: approved 2026-11-18. Implemented and verified 2026-11-21; committed as `c0d07d3` on branch `batch-3-progression` (pushed) and opened as a pull request into `batch-1-setup`.
 
 ## Context
 
@@ -434,6 +434,7 @@ You ended the test sessions, published, checked File → Version History and joi
 - **Leftovers:**
   - **Dev data:** your DEV profile is at tier 3 with pedestal 4, today's daily claimed and 954 coins. The DEV leaderboard `BiggestCrystal_2026W47` has your entry (2.00 ct). `Player_-1` and `Player_-2` were used.
   - **The DEV experience is published with batch 3.**
+  - **Git:** committed as `c0d07d3` on `batch-3-progression`, pushed; pull request into `batch-1-setup`. The record fix is a follow-up commit.
   - **Still running:** the Rojo server on port 34872. The Device Simulator is still on.
   - **`rojo build` output** is in the session scratchpad, outside the repo.
 - **Lessons:**
