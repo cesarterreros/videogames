@@ -23,6 +23,7 @@ export type ProgressionConfig = {
 	GoalPool: { Goal },
 	GoalsPerDay: number,
 	CodexBonus: number,
+	GoalRewardValueMult: number,
 	Tutorial: TutorialConfig,
 }
 
@@ -46,6 +47,8 @@ local Progression: ProgressionConfig = {
 	},
 	GoalsPerDay = 3,
 	CodexBonus = 0.10,
+	-- A claimed daily goal pays this × BaseValue of the player's highest unlocked seed.
+	GoalRewardValueMult = 10,
 	Tutorial = {
 		GrowSeconds = 8,
 		BonusCoins = 50,

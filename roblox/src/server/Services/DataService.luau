@@ -27,7 +27,8 @@ local profiles: { [Player]: any } = {}
 local loadedEvent = Instance.new("BindableEvent")
 local sanitizeConfig: Migration.SanitizeConfig
 
--- Fires (player, data) once a player's profile is loaded and ready to use.
+-- Fires (player, data) once a player's profile is loaded and ready to use. data is a COPY (BindableEvent
+-- arguments are copied): listeners that change the profile must use DataService:GetData(player).
 DataService.ProfileLoaded = loadedEvent.Event
 
 local function profileKey(player: Player): string
@@ -159,6 +160,47 @@ function DataService:Save(player: Player)
 	if profile ~= nil and profile:IsActive() then
 		profile:Save()
 	end
+end
+
+-- The one currency (MVP: coins only) as named in economy analytics.
+local CURRENCY = "Coins"
+
+-- A coin amount from server code: a whole number above 0.
+local function isCoinAmount(amount: number): boolean
+	return type(amount) == "number" and amount == amount and amount > 0 and amount % 1 == 0 and amount < math.huge
+end
+
+-- Every coin grant goes through here: adds coins and logs one economy Source event.
+-- transactionType is an Enum.AnalyticsEconomyTransactionType name (Gameplay, TimedReward, ...); sku names the source.
+-- Returns false (and changes nothing) if the profile isn't loaded or the amount isn't a positive whole number.
+function DataService:AddCoins(player: Player, amount: number, transactionType: string, sku: string?): boolean
+	local data = DataService:GetData(player)
+	if data == nil or not isCoinAmount(amount) then
+		return false
+	end
+	data.Coins += amount
+	Analytics:Economy(player, Enum.AnalyticsEconomyFlowType.Source, CURRENCY, amount, data.Coins, transactionType, sku)
+	return true
+end
+
+-- Every coin purchase goes through here: false (nothing changed) if coins are short; otherwise takes them and
+-- logs one economy Sink event of type Shop. sku is the seed ID or the upgrade ("Pedestal_4", "Lamp_1").
+function DataService:SpendCoins(player: Player, amount: number, sku: string): boolean
+	local data = DataService:GetData(player)
+	if data == nil or not isCoinAmount(amount) or data.Coins < amount then
+		return false
+	end
+	data.Coins -= amount
+	Analytics:Economy(
+		player,
+		Enum.AnalyticsEconomyFlowType.Sink,
+		CURRENCY,
+		amount,
+		data.Coins,
+		Enum.AnalyticsEconomyTransactionType.Shop.Name,
+		sku
+	)
+	return true
 end
 
 -- Sends the player their current public state.
