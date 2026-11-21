@@ -16,6 +16,9 @@ export type SanitizeConfig = {
 
 local CURRENT_VERSION = 1
 local MUTATIONS = { None = true, Glowing = true, Molten = true, Prismatic = true }
+-- Must match the preset names in Config/Lighting (checked by Profile.spec).
+local BRIGHTNESS_LEVELS = { Dark = true, Normal = true, Bright = true }
+local DEFAULT_BRIGHTNESS = "Normal"
 
 -- Copies every key missing in `data` from `template`, recursing into tables that exist on both sides.
 local function fillMissing(data: Data, template: Data)
@@ -151,6 +154,16 @@ function Migration.sanitize(data: Data, config: SanitizeConfig): (Data, { string
 			fix("codex seed " .. tostring(id))
 			data.Codex[id] = nil
 		end
+	end
+
+	-- Settings: Brightness must be one of the 3 level names.
+	if type(data.Settings) ~= "table" then
+		fix("settings not a table")
+		data.Settings = {}
+	end
+	if BRIGHTNESS_LEVELS[data.Settings.Brightness] ~= true then
+		fix("brightness " .. tostring(data.Settings.Brightness))
+		data.Settings.Brightness = DEFAULT_BRIGHTNESS
 	end
 
 	return data, issues

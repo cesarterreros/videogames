@@ -17,4 +17,7 @@ return {
 	["Seed.Moonstone"] = "Moonstone",
 	["Seed.StarfireOpal"] = "Starfire Opal",
 	["Seed.Voidheart"] = "Voidheart",
+	["Brightness.Dark"] = "Dark",
+	["Brightness.Normal"] = "Normal",
+	["Brightness.Bright"] = "Bright",
 }

@@ -175,10 +175,79 @@ return function(test)
 			"src/shared/Config/Progression.luau",
 			"src/shared/Config/Monetization.luau",
 			"src/shared/Config/Game.luau",
+			"src/shared/Config/Lighting.luau",
 		}
 		for _, path in paths do
 			local source = fs.readFile(path)
 			expect(string.find(source, "require", 1, true)):toBeNil()
+		end
+	end)
+
+	test("Lighting: every preset has the 4 fields with the right types", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local count = 0
+		for _, preset in Lighting.Presets do
+			count += 1
+			expect(#preset.Ambient):toBe(3)
+			expect(#preset.OutdoorAmbient):toBe(3)
+			expect(type(preset.Brightness)):toBe("number")
+			expect(type(preset.ExposureCompensation)):toBe("number")
+		end
+		expect(count):toBe(3)
+	end)
+
+	test("Lighting: colours are whole numbers 0-255", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		for _, preset in Lighting.Presets do
+			for _, colour in { preset.Ambient, preset.OutdoorAmbient } do
+				for _, v in colour do
+					expect(type(v)):toBe("number")
+					expect(v % 1):toBe(0)
+					expect(v >= 0):toBeTruthy()
+					expect(v <= 255):toBeTruthy()
+				end
+			end
+		end
+	end)
+
+	test("Lighting: Default and every Levels entry is a preset", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		expect(Lighting.Presets[Lighting.Default]).never:toBeNil()
+		for _, name in Lighting.Levels do
+			expect(Lighting.Presets[name]).never:toBeNil()
+		end
+	end)
+
+	test("Lighting: SetBrightness remote accepts exactly the preset names", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local Remotes = require("../src/shared/Net/Remotes")
+		local args = Remotes.SetBrightness.Args
+		expect(#args):toBe(1)
+		expect(args[1].kind):toBe("enum")
+		local presetCount = 0
+		for _ in Lighting.Presets do
+			presetCount += 1
+		end
+		expect(#args[1].values):toBe(presetCount)
+		for _, name in args[1].values do
+			expect(Lighting.Presets[name]).never:toBeNil()
+		end
+	end)
+
+	test("Lighting: Levels names each preset exactly once", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local presetCount = 0
+		for _ in Lighting.Presets do
+			presetCount += 1
+		end
+		expect(#Lighting.Levels):toBe(presetCount)
+		local seen = {}
+		for _, name in Lighting.Levels do
+			expect(seen[name]):toBeNil()
+			seen[name] = true
+		end
+		for name in Lighting.Presets do
+			expect(seen[name]):toBe(true)
 		end
 	end)
 end

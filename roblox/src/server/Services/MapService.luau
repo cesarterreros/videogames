@@ -2,12 +2,14 @@
 -- Builds the whole world procedurally from simple anchored Parts: the ground, the hub disc with the
 -- HeartCrystal, six radial paths and six grow-plots (floor, walls, sign, spawn point, 13 pedestals each).
 -- Other services depend on the exact names in this hierarchy, so keep them stable.
--- Lighting mood is set here as well; the final art pass happens in batch 6.
+-- The default Lighting level is set here too (values in Config/Lighting); the final art pass happens in batch 6.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 
-local GameConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.Game)
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local GameConfig = require(Shared.Config.Game)
+local LightingConfig = require(Shared.Config.Lighting)
 
 local MapService = {}
 
@@ -27,8 +29,12 @@ local PEDESTAL_DIAMETER = 4
 local GOLD_PEDESTAL_FROM = 11
 
 local CRYSTAL_COLOR = Color3.fromRGB(120, 200, 255)
-local ROCK_COLOR = Color3.fromRGB(46, 44, 58)
-local PEDESTAL_LOCKED_COLOR = Color3.fromRGB(40, 40, 50)
+-- Cave surfaces are kept light enough for the brightness levels to show them (see the cave brightness record).
+local ROCK_COLOR = Color3.fromRGB(105, 100, 125)
+local PEDESTAL_LOCKED_COLOR = Color3.fromRGB(80, 80, 95)
+local GROUND_COLOR = Color3.fromRGB(50, 50, 66)
+local CAVE_FLOOR_COLOR = Color3.fromRGB(70, 70, 92) -- plot floors and paths
+local HUB_FLOOR_COLOR = Color3.fromRGB(80, 80, 104)
 local PEDESTAL_UNLOCKED_COLOR = Color3.fromRGB(120, 120, 140)
 
 -- Cylinders have their axis on X, so this stands one upright with Y as the height.
@@ -141,7 +147,7 @@ local function buildGround(map: Folder)
 		Size = Vector3.new(360, 1, 360),
 		CFrame = CFrame.new(0, GROUND_TOP - 0.5, 0),
 		Material = Enum.Material.Slate,
-		Color = Color3.fromRGB(18, 18, 26),
+		Color = GROUND_COLOR,
 		Parent = map,
 	})
 end
@@ -200,7 +206,7 @@ local function buildHub(map: Folder)
 		Size = Vector3.new(1, HUB_RADIUS * 2, HUB_RADIUS * 2),
 		CFrame = CFrame.new(0, FLOOR_TOP - 0.5, 0) * UPRIGHT,
 		Material = Enum.Material.Slate,
-		Color = Color3.fromRGB(34, 34, 52),
+		Color = HUB_FLOOR_COLOR,
 		Parent = hub,
 	})
 
@@ -242,7 +248,7 @@ local function buildPaths(map: Folder)
 			-- Yawing by `angle` makes the part's local +Z point straight out along the plot's direction.
 			CFrame = CFrame.new(centre) * CFrame.Angles(0, angle, 0),
 			Material = Enum.Material.Slate,
-			Color = Color3.fromRGB(28, 28, 40),
+			Color = CAVE_FLOOR_COLOR,
 			Parent = paths,
 		})
 	end
@@ -429,7 +435,7 @@ local function buildPlot(index: number): Model
 		Size = Vector3.new(PLOT_HALF_WIDTH * 2, 1, PLOT_HALF_DEPTH * 2),
 		CFrame = plotFrame * CFrame.new(0, FLOOR_TOP - 0.5, 0),
 		Material = Enum.Material.Slate,
-		Color = Color3.fromRGB(28, 28, 40),
+		Color = CAVE_FLOOR_COLOR,
 		Parent = plot,
 	})
 
@@ -460,12 +466,17 @@ local function buildPlots(map: Folder)
 	plots.Parent = map
 end
 
--- Night mood for the whole game: dark blue ambience, short fog and a soft bloom on the neon.
+-- Night mood for the whole game: the default brightness level, short fog and a soft bloom on the neon.
+-- Each client then applies its player's own level on top (LightingController).
 local function setupLighting()
+	local preset = LightingConfig.Presets[LightingConfig.Default]
+	assert(preset ~= nil, "[MapService] Config/Lighting Default must name a preset")
 	Lighting.ClockTime = 0
-	Lighting.Brightness = 1
-	Lighting.Ambient = Color3.fromRGB(24, 26, 48)
-	Lighting.OutdoorAmbient = Color3.fromRGB(34, 38, 70)
+	Lighting.Brightness = preset.Brightness
+	Lighting.ExposureCompensation = preset.ExposureCompensation
+	Lighting.Ambient = Color3.fromRGB(preset.Ambient[1], preset.Ambient[2], preset.Ambient[3])
+	Lighting.OutdoorAmbient =
+		Color3.fromRGB(preset.OutdoorAmbient[1], preset.OutdoorAmbient[2], preset.OutdoorAmbient[3])
 	Lighting.EnvironmentDiffuseScale = 0.3
 	Lighting.EnvironmentSpecularScale = 0.3
 	Lighting.FogColor = Color3.fromRGB(10, 10, 24)

@@ -31,7 +31,7 @@ local TEMPLATE = {
 		AdCounts = { Date = "", FinishNow = 0, Luck = 0, CoinPouch = 0 },
 		LastAdAt = 0,
 	},
-	Settings = { AutoShatter = false, Music = true },
+	Settings = { AutoShatter = false, Music = true, Brightness = "Normal" }, -- Brightness: "Dark"|"Normal"|"Bright"
 	FirstJoinAt = 0,
 	LastJoinAt = 0,
 	Sessions = 0,
