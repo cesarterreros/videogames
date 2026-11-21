@@ -122,6 +122,72 @@ return function(test)
 		expect(#issues):toBe(1)
 	end)
 
+	test("ProfileTemplate: Settings.Brightness defaults to Normal", function()
+		expect(ProfileTemplate.new().Settings.Brightness):toBe("Normal")
+	end)
+
+	test("Migration: an old profile without Brightness gets Normal and keeps its other settings", function()
+		-- Pre-version data goes through migrate's fill step.
+		local data = Migration.migrate({ Settings = { AutoShatter = true, Music = false } }, ProfileTemplate.new())
+		expect(data.Settings.Brightness):toBe("Normal")
+		expect(data.Settings.AutoShatter):toBe(true)
+		expect(data.Settings.Music):toBe(false)
+
+		-- A v1 profile saved before the field existed: in the game Reconcile fills it first;
+		-- sanitize is the safety net and still ends with Normal.
+		local p = ProfileTemplate.new()
+		p.Settings.Brightness = nil
+		local fixed = Migration.sanitize(p, sanitizeConfig())
+		expect(fixed.Settings.Brightness):toBe("Normal")
+		expect(fixed.Settings.Music):toBe(true)
+	end)
+
+	test("Migration: sanitize repairs an unknown Brightness and reports it", function()
+		local p = ProfileTemplate.new()
+		p.Settings.Brightness = "Purple"
+		local data, issues = Migration.sanitize(p, sanitizeConfig())
+		expect(data.Settings.Brightness):toBe("Normal")
+		expect(#issues):toBe(1)
+		expect(issues[1]):toBe("brightness Purple")
+
+		local q = ProfileTemplate.new()
+		q.Settings.Brightness = 3
+		local data2, issues2 = Migration.sanitize(q, sanitizeConfig())
+		expect(data2.Settings.Brightness):toBe("Normal")
+		expect(#issues2):toBe(1)
+	end)
+
+	test("Migration: sanitize keeps a valid Brightness", function()
+		local p = ProfileTemplate.new()
+		p.Settings.Brightness = "Dark"
+		local data, issues = Migration.sanitize(p, sanitizeConfig())
+		expect(data.Settings.Brightness):toBe("Dark")
+		expect(#issues):toBe(0)
+	end)
+
+	test("Migration: sanitize replaces a Settings value that isn't a table", function()
+		local p = ProfileTemplate.new()
+		p.Settings = "broken"
+		local data, issues = Migration.sanitize(p, sanitizeConfig())
+		expect(data.Settings.Brightness):toBe("Normal")
+		expect(#issues):toBe(2)
+	end)
+
+	test("Migration: Brightness names match Config/Lighting", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		expect(ProfileTemplate.new().Settings.Brightness):toBe(Lighting.Default)
+		local count = 0
+		for name in Lighting.Presets do
+			count += 1
+			local p = ProfileTemplate.new()
+			p.Settings.Brightness = name
+			local data, issues = Migration.sanitize(p, sanitizeConfig())
+			expect(data.Settings.Brightness):toBe(name)
+			expect(#issues):toBe(0)
+		end
+		expect(count):toBe(3)
+	end)
+
 	test("Logic modules contain no require", function()
 		local fs = require("@lune/fs")
 		for _, name in { "ProfileTemplate", "Migration", "RateLimiter", "Validate", "WeekId", "Format" } do

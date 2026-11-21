@@ -71,6 +71,14 @@ return {
 			{ kind = "bool" },
 		},
 	},
+	-- Cave brightness level; must match the preset names in Config/Lighting (checked by Config.spec).
+	SetBrightness = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = {
+			{ kind = "enum", values = { "Dark", "Normal", "Bright" } },
+		},
+	},
 	RequestInstantGrow = {
 		Kind = "Function",
 		Direction = "ToServer",
