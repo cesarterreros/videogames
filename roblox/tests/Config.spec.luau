@@ -250,4 +250,42 @@ return function(test)
 			expect(seen[name]):toBe(true)
 		end
 	end)
+
+	test("Batch 3: announce lists name real mutation and size bands; LeaderboardRows is 10", function()
+		local Game = require("../src/shared/Config/Game")
+		local mutations, sizes = {}, {}
+		for _, band in Rolls.Mutation do
+			mutations[band.Name] = true
+		end
+		for _, band in Rolls.Size do
+			sizes[band.Name] = true
+		end
+		for name in Game.AnnounceMutations do
+			expect(mutations[name]):toBe(true)
+		end
+		for name in Game.AnnounceSizeTiers do
+			expect(sizes[name]):toBe(true)
+		end
+		expect(Game.LeaderboardRows):toBe(10)
+	end)
+
+	test("Batch 3: GoalRewardValueMult is 10 (tier 1 goal pays 150)", function()
+		local Progression = require("../src/shared/Config/Progression")
+		expect(Progression.GoalRewardValueMult):toBe(10)
+		expect(Progression.GoalRewardValueMult * Seeds[1].BaseValue):toBe(150)
+	end)
+
+	test("Batch 3: every goal, mutation and size tier has an English label", function()
+		local en = require("../src/shared/Strings/en")
+		local Progression = require("../src/shared/Config/Progression")
+		for _, goal in Progression.GoalPool do
+			expect(type(en["Goal." .. goal.Id])):toBe("string")
+		end
+		for _, band in Rolls.Mutation do
+			expect(type(en["Mutation." .. band.Name])):toBe("string")
+		end
+		for _, band in Rolls.Size do
+			expect(type(en["Size." .. band.Name])):toBe("string")
+		end
+	end)
 end

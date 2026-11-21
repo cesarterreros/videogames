@@ -12,10 +12,14 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
 local Seeds = require(Shared.Config.Seeds)
 local Economy = require(Shared.Config.Economy)
+local Progression = require(Shared.Config.Progression)
 local RollsConfig = require(Shared.Config.Rolls)
 local Growth = require(Shared.Logic.Growth)
 local Rolls = require(Shared.Logic.Rolls)
 local WeekId = require(Shared.Logic.WeekId)
+local EconomyLogic = require(Shared.Logic.Economy)
+local Codex = require(Shared.Logic.Codex)
+local Surge = require(Shared.Logic.Surge)
 
 local RemoteService = require(script.Parent.RemoteService)
 local DataService = require(script.Parent.DataService)
@@ -23,6 +27,18 @@ local MapService = require(script.Parent.MapService)
 local PlotService = require(script.Parent.PlotService)
 
 local CrystalService = {}
+
+-- Services that run after this one in Main.server. Required on first use, not at the top, so no require
+-- cycle can form (they're only called at runtime, from remote handlers).
+local function progression(): any
+	return require(script.Parent.ProgressionService)
+end
+local function social(): any
+	return require(script.Parent.SocialService)
+end
+local function leaderboard(): any
+	return require(script.Parent.LeaderboardService)
+end
 
 local IS_STUDIO = RunService:IsStudio()
 
@@ -108,11 +124,13 @@ local function onPlant(player: Player, index: number, seedId: string)
 	-- Take the seed.
 	data.SeedBag[seedId] = if count - 1 > 0 then count - 1 else nil
 
-	-- Roll everything now; the size stays secret until the shatter.
-	local sizeRoll = Rolls.size(rng, RollsConfig.Size)
-	local mutation = Rolls.mutation(rng, RollsConfig.Mutation)
-	local shape = Rolls.shape(rng)
+	-- Roll everything now; the size stays secret until the shatter. During a Crystal Surge (the first
+	-- SurgeMinutes of every UTC hour) mutation chances are multiplied.
 	local plantedAt = os.time()
+	local chanceMult = if Surge.isActive(plantedAt, Economy.SurgeMinutes) then Economy.SurgeMutationMult else 1
+	local sizeRoll = Rolls.size(rng, RollsConfig.Size)
+	local mutation = Rolls.mutation(rng, RollsConfig.Mutation, chanceMult)
+	local shape = Rolls.shape(rng)
 	local crystal = {
 		SeedId = seedId,
 		PlantedAt = plantedAt,
@@ -125,6 +143,9 @@ local function onPlant(player: Player, index: number, seedId: string)
 	data.Pedestals[key] = crystal
 
 	applyAttributes(pedestal, crystal)
+	if seed.Tier >= 3 then
+		progression():Track(player, "PlantUncommon", 1)
+	end
 	DataService:SyncState(player)
 end
 
@@ -146,7 +167,13 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 	-- 1. Remove first.
 	data.Pedestals[key] = nil
 
-	-- 2. Value.
+	-- 2. Value. A completed Codex entry (bonus from the shatter after the one that completes it) and friends
+	-- in the server multiply the coins.
+	local coinMult = EconomyLogic.shatterCoinMult(
+		Codex.isComplete(data.Codex, seed.Id),
+		Progression.CodexBonus,
+		social():FriendBonus(player)
+	)
 	local overgrowth =
 		Growth.overgrowth(now, crystal.ReadyAt, RollsConfig.Overgrowth.PerHour, RollsConfig.Overgrowth.Cap)
 	local coins, carats = Growth.shatterValue(
@@ -154,36 +181,47 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 		seed.BaseCarats,
 		crystal.SizeRoll,
 		mutationMult[crystal.Mutation] or 1,
-		overgrowth
+		overgrowth,
+		coinMult
 	)
 	carats = math.floor(carats * 100 + 0.5) / 100 -- 2 decimals, the leaderboard's precision
 
-	-- 3. Grant.
-	data.Coins += coins
+	-- 3. Grant (one economy Source event).
+	DataService:AddCoins(player, coins, Enum.AnalyticsEconomyTransactionType.Gameplay.Name, seed.Id)
 	data.Stats.Shatters += 1
 	data.Stats.CoinsEarned += coins
 
-	local week = WeekId.fromUnix(now)
-	if data.WeeklyBest.WeekId ~= week then
-		data.WeeklyBest = { WeekId = week, Carats = 0 }
-	end
-	local newBest = carats > data.WeeklyBest.Carats
-	if newBest then
-		data.WeeklyBest.Carats = carats
-	end
-
-	-- 4. Clear the pedestal.
-	applyAttributes(pedestal, nil)
-
-	return {
+	local result = {
 		pedestal = index,
 		coins = coins,
 		carats = carats,
 		mutation = crystal.Mutation,
 		sizeTier = Rolls.sizeTierName(crystal.SizeRoll, RollsConfig.Size),
-		newBest = newBest,
+		newBest = false,
 		instantGrown = crystal.InstantGrown == true,
 	}
+
+	-- 4. Codex, goals, tier unlock.
+	progression():OnShatter(player, result, seed)
+
+	-- 5. Weekly best and the leaderboard queue.
+	local week = WeekId.fromUnix(now)
+	if data.WeeklyBest.WeekId ~= week then
+		data.WeeklyBest = { WeekId = week, Carats = 0 }
+	end
+	if carats > data.WeeklyBest.Carats then
+		data.WeeklyBest.Carats = carats
+		result.newBest = true
+		leaderboard():Submit(player, carats, result.instantGrown)
+	end
+
+	-- 6. Rare finds are announced to the server.
+	social():Announce(player, result, seed)
+
+	-- 7. Clear the pedestal. The caller sends ShatterResult, then StateSync.
+	applyAttributes(pedestal, nil)
+
+	return result
 end
 
 -- Shatter(index): one crystal.

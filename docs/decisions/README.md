@@ -35,6 +35,7 @@ Skill defaults: Haiku for small, fully specified edits; DeepSeek Flash for stand
 - **Tell DeepSeek to write each file in one Write call.** Batch 1's test-runner job ran out of turns (50) doing stub-then-small-Edits.
 - **One DeepSeek job at a time per workspace.** After each job: `get_deepseek_recovery`, review the files, run the tests, then `acknowledge_deepseek_mutations` with the exact IDs.
 - **Haiku subagents** do well with fully specified files (exact content or exact tables). Give them the contract text itself, not a pointer to a record.
+- **`BindableEvent` arguments are copies** (batch 3): a listener of `DataService.ProfileLoaded` that changes the profile must use `DataService:GetData(player)`, not the event's table argument.
 - **Test style:** `expect(x):toBe(y)` (colon calls), `expect(x).never:toBe(y)`. "No require" checks must search for a call (`require%s*[%(\"']`), not the bare word, because comments may mention it.
 
 ## Starting a new session

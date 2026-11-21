@@ -233,7 +233,8 @@ Escalation: a delegated task that fails review goes back once with the specific 
   - **MapService:** `setupLighting` applies `Presets[Default]`, including `ExposureCompensation`, which the old code never set. It asserts that the default names a preset. The 5 surface colours are now named constants with the new values.
   - **New `Config.spec` case:** the remote's enum names equal the Lighting presets.
 - **Tests:** **104 passed, 0 failed** (93 + 11 new). StyLua is clean, and `rojo build` succeeds.
-- **Task 6 done (2026-11-21):** every check in Verification passed (Findings → Task 6). The Outcome is below. **Nothing committed yet.**
+- **Task 6 done (2026-11-21):** every check in Verification passed (Findings → Task 6). The Outcome is below.
+- **Committed (2026-11-21):** commit `69d1fd4` on branch `cave-brightness`, pushed, and merged into `batch-1-setup` as PR #2 (`00b0fa6`, same tree). The "not committed" notes above are from before that. Batch 3 branches from `cave-brightness`.
 - **Context for a new session**, read before task 1:
   - this record
   - [README.md → Starting a new session](README.md#starting-a-new-session)
