@@ -15,6 +15,7 @@ local RemoteService = require(script.Parent.RemoteService)
 local DataService = require(script.Parent.DataService)
 local MapService = require(script.Parent.MapService)
 local PlotService = require(script.Parent.PlotService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local ShopService = {}
 
@@ -60,6 +61,7 @@ local function onBuySeed(player: Player, seedId: string, qty: number)
 		return
 	end
 	data.SeedBag[seed.Id] = (data.SeedBag[seed.Id] or 0) + qty
+	TutorialService:OnEvent(player, "BuySeed") -- tutorial step 5 (data only)
 	DataService:SyncState(player)
 end
 

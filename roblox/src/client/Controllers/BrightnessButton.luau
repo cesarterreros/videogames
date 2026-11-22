@@ -1,5 +1,5 @@
 --!strict
--- Round "☀" button at the top right of the screen that cycles the cave brightness level.
+-- Round "☀" button that lives in the HUD's brightness slot (top right) and cycles the cave brightness level.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,23 +14,18 @@ local BrightnessButton = {}
 -- Nothing to set up. Must not yield.
 function BrightnessButton:Init() end
 
--- Builds the button and its level label, then wires the tap handler.
+-- Builds the button and its level label inside the HUD slot, then wires the tap handler.
 function BrightnessButton:Start()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	-- The HUD owns the slot and UIController builds it, so wait for it to appear.
+	local slot = playerGui:WaitForChild("CrystalGroveUI"):WaitForChild("Hud"):WaitForChild("BrightnessSlot")
 	local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetBrightness") :: RemoteEvent
-
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "BrightnessGui"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = false
-	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 	local button = Instance.new("TextButton")
 	button.Name = "Button"
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.Position = UDim2.new(1, -16, 0, 8)
-	button.Size = UDim2.fromOffset(52, 52)
+	button.AnchorPoint = Vector2.new(0, 0)
+	button.Position = UDim2.fromOffset(0, 0)
+	button.Size = UDim2.fromScale(1, 1)
 	button.Text = "☀"
 	button.TextScaled = true
 	button.Font = Enum.Font.GothamBold
@@ -58,13 +53,14 @@ function BrightnessButton:Start()
 	buttonPadding.PaddingRight = UDim.new(0, 8)
 	buttonPadding.Parent = button
 
-	button.Parent = gui
+	button.Parent = slot
 
 	local label = Instance.new("TextLabel")
 	label.Name = "LevelLabel"
 	label.AnchorPoint = Vector2.new(1, 0)
-	label.Position = UDim2.new(1, -16, 0, 8 + 52 + 6)
+	label.Position = UDim2.new(1, 0, 1, 6)
 	label.Size = UDim2.fromOffset(120, 28)
+	label.ZIndex = 10
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBold
 	label.TextColor3 = Color3.new(1, 1, 1)
@@ -84,10 +80,7 @@ function BrightnessButton:Start()
 	labelPadding.PaddingRight = UDim.new(0, 4)
 	labelPadding.Parent = label
 
-	label.Parent = gui
-
-	-- Everything is built; attach the gui last so it appears complete.
-	gui.Parent = playerGui
+	label.Parent = slot
 
 	-- Bumped on every tap so only the newest delay hides the label.
 	local hideToken = 0

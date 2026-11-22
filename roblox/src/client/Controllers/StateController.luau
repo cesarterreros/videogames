@@ -1,10 +1,8 @@
 --!strict
--- Client-side store for server state snapshots (plus Studio-only Toast/Announce prints). Read-only: never sends to the server.
+-- Client-side store for server state snapshots. Read-only: never sends to the server.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-
-local Strings = require(ReplicatedStorage:WaitForChild("Shared").Strings.Strings)
 
 local StateController = {}
 
@@ -14,19 +12,6 @@ local changed = Instance.new("BindableEvent")
 -- Fires with the new snapshot table.
 StateController.Changed = changed.Event
 
--- Studio only, until batch 4's toasts: prints a Toast/Announce message as "[Tag] text".
--- An empty parameter (for example no mutation) would leave a double space, so runs of spaces are collapsed.
-local function printMessage(tag: string, key: any, params: any)
-	if typeof(key) ~= "string" then
-		return
-	end
-	local text = Strings.get(key, if typeof(params) == "table" then params else nil)
-	text = (string.gsub(text, " +", " "))
-	text = (string.gsub(text, "^ ", ""))
-	text = (string.gsub(text, " $", ""))
-	print(("[%s] %s"):format(tag, text))
-end
-
 function StateController:Init()
 	-- Nothing to set up. Must not yield.
 end
@@ -34,16 +19,6 @@ end
 function StateController:Start()
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local stateSync = remotes:WaitForChild("StateSync") :: RemoteEvent
-	if RunService:IsStudio() then
-		local toast = remotes:WaitForChild("Toast") :: RemoteEvent
-		local announce = remotes:WaitForChild("Announce") :: RemoteEvent
-		toast.OnClientEvent:Connect(function(key: any, params: any)
-			printMessage("Toast", key, params)
-		end)
-		announce.OnClientEvent:Connect(function(key: any, params: any)
-			printMessage("Announce", key, params)
-		end)
-	end
 
 	stateSync.OnClientEvent:Connect(function(snapshot: any)
 		if typeof(snapshot) ~= "table" then

@@ -10,6 +10,7 @@ local Lighting = game:GetService("Lighting")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
 local LightingConfig = require(Shared.Config.Lighting)
+local Strings = require(Shared.Strings.Strings)
 
 local MapService = {}
 
@@ -194,6 +195,110 @@ local function buildHeartCrystal(hub: Model)
 	crystal.Parent = hub
 end
 
+-- Hub stalls (batch 4): a Seed Shop and an Upgrades stall near the spawn pad, on the side away from the
+-- leaderboard board (LeaderboardService puts it 30 degrees round from plot 1's path, radius 34). Each stall faces
+-- the spawn pad and carries a ProximityPrompt; the client opens the panel named by the stall's OpensPanel attribute.
+local STALL_RADIUS = 30
+local STALL_FACES = Vector3.new(0, FLOOR_TOP, 22) -- the HubSpawn pad
+local STALLS = {
+	{
+		Name = "SeedShopStall",
+		Angle = -20,
+		SignKey = "Stall.SeedShop",
+		Panel = "Shop",
+		Color = Color3.fromRGB(70, 160, 90),
+	},
+	{
+		Name = "UpgradeStall",
+		Angle = -40,
+		SignKey = "Stall.Upgrades",
+		Panel = "Upgrades",
+		Color = Color3.fromRGB(80, 120, 200),
+	},
+}
+
+-- One stall: a counter, two posts, a coloured roof and a sign whose text ignores scene lighting.
+-- The stall frame's -Z (LookVector, the Front face) points at the spawn pad.
+local function buildStall(hub: Model, def: { [string]: any })
+	local angle = math.rad(def.Angle)
+	local base = Vector3.new(math.sin(angle) * STALL_RADIUS, FLOOR_TOP, math.cos(angle) * STALL_RADIUS)
+	local frame = CFrame.lookAt(base, STALL_FACES)
+
+	local stall = Instance.new("Model")
+	stall.Name = def.Name
+	stall:SetAttribute("OpensPanel", def.Panel)
+
+	local counter = makePart({
+		Name = "Counter",
+		Size = Vector3.new(8, 3, 3),
+		CFrame = frame * CFrame.new(0, 1.5, 0),
+		Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(120, 85, 55),
+		Parent = stall,
+	})
+	for _, x in { -3.6, 3.6 } do
+		makePart({
+			Name = "Post",
+			Size = Vector3.new(0.6, 7, 0.6),
+			CFrame = frame * CFrame.new(x, 3.5, 1.2),
+			Material = Enum.Material.Wood,
+			Color = Color3.fromRGB(100, 70, 45),
+			Parent = stall,
+		})
+	end
+	makePart({
+		Name = "Roof",
+		Size = Vector3.new(9, 0.5, 4),
+		CFrame = frame * CFrame.new(0, 7.25, 0.5),
+		Material = Enum.Material.Fabric,
+		Color = def.Color,
+		Parent = stall,
+	})
+	local sign = makePart({
+		Name = "Sign",
+		Size = Vector3.new(7, 1.6, 0.3),
+		CFrame = frame * CFrame.new(0, 6.1, -0.2),
+		Material = Enum.Material.SmoothPlastic,
+		Color = Color3.fromRGB(30, 28, 40),
+		Parent = stall,
+	})
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "SignGui"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0
+	gui.Parent = sign
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Title"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = Strings.get(def.SignKey)
+	label.TextScaled = true
+	label.Font = Enum.Font.FredokaOne
+	label.TextColor3 = Color3.fromRGB(255, 215, 120)
+	label.Parent = gui
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 3
+	stroke.Color = Color3.new(0, 0, 0)
+	stroke.Parent = label
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "StallPrompt"
+	prompt.ActionText = Strings.get("Prompt.Open")
+	prompt.ObjectText = Strings.get(def.SignKey)
+	prompt.MaxActivationDistance = 10
+	prompt.HoldDuration = 0
+	prompt.RequiresLineOfSight = false
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.Parent = counter
+
+	stall.Parent = hub
+end
+
 -- The hub: round floor disc, the HeartCrystal and the shared spawn pad.
 local function buildHub(map: Folder)
 	local hub = Instance.new("Model")
@@ -211,6 +316,9 @@ local function buildHub(map: Folder)
 	})
 
 	buildHeartCrystal(hub)
+	for _, def in STALLS do
+		buildStall(hub, def)
+	end
 
 	-- Spawn pad on the hub floor, 22 studs from the centre, on the side facing plot 1.
 	local hubSpawn = Instance.new("SpawnLocation")

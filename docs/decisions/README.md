@@ -36,6 +36,8 @@ Skill defaults: Haiku for small, fully specified edits; DeepSeek Flash for stand
 - **One DeepSeek job at a time per workspace.** After each job: `get_deepseek_recovery`, review the files, run the tests, then `acknowledge_deepseek_mutations` with the exact IDs.
 - **Haiku subagents** do well with fully specified files (exact content or exact tables). Give them the contract text itself, not a pointer to a record.
 - **`BindableEvent` arguments are copies** (batch 3): a listener of `DataService.ProfileLoaded` that changes the profile must use `DataService:GetData(player)`, not the event's table argument.
+- **`typeof` returns `"Instance"`** (capital I), batch 4: a lowercase compare is always false and fails silently. `Screens.spec` now rejects it.
+- **StyLua: never run it on all of `src`** (batch 4): it reformats the vendored `src/server/Vendor/ProfileStore.luau`. Name the folders, or use `stylua src tests --glob '!**/Vendor/**'`. Tell delegated jobs the same.
 - **Test style:** `expect(x):toBe(y)` (colon calls), `expect(x).never:toBe(y)`. "No require" checks must search for a call (`require%s*[%(\"']`), not the bare word, because comments may mention it.
 
 ## Starting a new session

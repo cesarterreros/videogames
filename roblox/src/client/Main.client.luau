@@ -3,8 +3,17 @@
 
 local Controllers = script.Parent:WaitForChild("Controllers")
 
-local order: { string } =
-	{ "StateController", "CrystalRenderer", "EffectsController", "LightingController", "BrightnessButton" }
+local order: { string } = {
+	"StateController",
+	"LightingController",
+	"SoundController",
+	"UIController",
+	"BrightnessButton",
+	"CrystalRenderer",
+	"EffectsController",
+	"TapController",
+	"TutorialController",
+}
 
 local modules: { { name: string, module: any } } = {}
 for _, name in order do

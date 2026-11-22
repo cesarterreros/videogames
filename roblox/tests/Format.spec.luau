@@ -93,4 +93,13 @@ return function(test)
 		local source = fs.readFile("src/shared/Logic/Format.luau")
 		expect(string.find(source, "require", 1, true)):toBeNil()
 	end)
+
+	test("tidySpaces: an empty parameter leaves no double space", function()
+		local text = Format.interpolate("New in Codex: {mutation} {seed}", { mutation = "", seed = "Quartz" })
+		expect(Format.tidySpaces(text)):toBe("New in Codex: Quartz")
+		expect(Format.tidySpaces("  a   b  ")):toBe("a b")
+		expect(Format.tidySpaces("Player1 found a Colossal Prismatic Quartz!")):toBe(
+			"Player1 found a Colossal Prismatic Quartz!"
+		)
+	end)
 end

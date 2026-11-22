@@ -15,6 +15,7 @@ local Format = require(Shared.Logic.Format)
 local Strings = require(Shared.Strings.Strings)
 
 local StateController = require(script.Parent.StateController)
+local UIController = require(script.Parent.UIController)
 local CrystalBuilder = require(script.Parent.CrystalBuilder)
 local CrystalVisuals = require(script.Parent.CrystalVisuals)
 
@@ -45,7 +46,6 @@ local PULSE_PEAK = 1.04
 local MIN_LABEL_DELTA = 0.05
 
 local records: { [BasePart]: Record } = {}
-local plantRemote: RemoteEvent? = nil
 local shatterRemote: RemoteEvent? = nil
 local stress, stressFrames, stressWindowStart = false, 0, 0
 local seedById: { [string]: Seeds.Seed } = {}
@@ -138,22 +138,6 @@ local function placeLabel(record: Record, label: TextLabel, now: number, ready: 
 	end
 end
 
--- Lowest-tier seed the player owns at least one of, or nil (Seeds is ordered by tier).
-local function lowestSeed(): string?
-	local state = StateController:Get()
-	local bag: any = if state ~= nil then state.SeedBag else nil
-	if typeof(bag) ~= "table" then
-		return nil
-	end
-	for _, seed in Seeds do
-		local count = bag[seed.Id]
-		if type(count) == "number" and count >= 1 then
-			return seed.Id
-		end
-	end
-	return nil
-end
-
 -- Creates a pedestal prompt with its trigger handler, or returns the existing one.
 local function ensurePrompt(record: Record): ProximityPrompt
 	local existing = record.prompt
@@ -169,9 +153,10 @@ local function ensurePrompt(record: Record): ProximityPrompt
 	prompt.Triggered:Connect(function()
 		record.cooldownUntil = os.clock() + PROMPT_COOLDOWN
 		prompt.Enabled = false
-		local plant, shatter, seedId = plantRemote, shatterRemote, record.promptSeedId
-		if record.mode == "Plant" and seedId ~= nil and plant ~= nil then
-			plant:FireServer(record.index, seedId)
+		local shatter = shatterRemote
+		if record.mode == "Plant" then
+			-- Batch 4: pick the seed in the seed picker instead of planting the cheapest one.
+			UIController:Open("SeedPicker", record.index)
 		elseif record.mode == "Shatter" and shatter ~= nil then
 			shatter:FireServer(record.index)
 		end
@@ -198,11 +183,8 @@ local function updatePrompt(record: Record)
 	if record.pedestal:GetAttribute("Unlocked") == true then
 		local seed = seedById[record.seedId]
 		if record.seedId == "" or seed == nil then
-			local pick = lowestSeed()
-			if pick ~= nil then
-				mode, actionText, objectText = "Plant", Strings.get("Prompt.Plant"), Strings.get("Seed." .. pick)
-				record.promptSeedId = pick
-			end
+			-- Shown even with an empty bag: the picker then offers the Shop.
+			mode, actionText, objectText = "Plant", Strings.get("Prompt.Plant"), ""
 		elseif record.fakeReady or Growth.isReady(workspace:GetServerTimeNow(), record.readyAt) then
 			mode, actionText = "Shatter", Strings.get("Prompt.Shatter")
 			objectText = Strings.get("Seed." .. seed.Id)
@@ -459,7 +441,6 @@ function CrystalRenderer:Init() end
 function CrystalRenderer:Start()
 	local plots = workspace:WaitForChild("Map"):WaitForChild("Plots")
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
-	plantRemote = remotes:WaitForChild("Plant") :: RemoteEvent
 	shatterRemote = remotes:WaitForChild("Shatter") :: RemoteEvent
 
 	for _, plot in plots:GetChildren() do
