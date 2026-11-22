@@ -25,6 +25,7 @@ local RemoteService = require(script.Parent.RemoteService)
 local DataService = require(script.Parent.DataService)
 local MapService = require(script.Parent.MapService)
 local PlotService = require(script.Parent.PlotService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local CrystalService = {}
 
@@ -86,9 +87,10 @@ local function refreshPlot(player: Player, data: { [string]: any })
 	end
 end
 
--- Studio only (Decision 1): top the bag up to a few Quartz so the loop can be tested before the shop exists.
+-- Studio only (Decision 1): top the bag up to a few Quartz for testing. Not during the tutorial (batch 4), whose
+-- steps depend on the bag holding exactly what the tutorial gives.
 local function studioTopUp(player: Player, data: { [string]: any })
-	if not IS_STUDIO then
+	if not IS_STUDIO or TutorialService:IsActive(player) then
 		return
 	end
 	local count = data.SeedBag.Quartz or 0
@@ -121,6 +123,11 @@ local function onPlant(player: Player, index: number, seedId: string)
 		return
 	end
 
+	-- Tutorial favours, asked before the crystal is stored (they count the plants made so far): the first
+	-- crystal grows in Tutorial.GrowSeconds and the 3rd plant overall is Glowing.
+	local growOverride = TutorialService:GrowSecondsOverride(player)
+	local forcedMutation = TutorialService:ForcedMutation(player)
+
 	-- Take the seed.
 	data.SeedBag[seedId] = if count - 1 > 0 then count - 1 else nil
 
@@ -129,12 +136,13 @@ local function onPlant(player: Player, index: number, seedId: string)
 	local plantedAt = os.time()
 	local chanceMult = if Surge.isActive(plantedAt, Economy.SurgeMinutes) then Economy.SurgeMutationMult else 1
 	local sizeRoll = Rolls.size(rng, RollsConfig.Size)
-	local mutation = Rolls.mutation(rng, RollsConfig.Mutation, chanceMult)
+	local mutation = forcedMutation or Rolls.mutation(rng, RollsConfig.Mutation, chanceMult)
 	local shape = Rolls.shape(rng)
+	local growSeconds = growOverride or Growth.growSeconds(seed.GrowSeconds, data.LampLevel, Economy.LampStep)
 	local crystal = {
 		SeedId = seedId,
 		PlantedAt = plantedAt,
-		ReadyAt = plantedAt + Growth.growSeconds(seed.GrowSeconds, data.LampLevel, Economy.LampStep),
+		ReadyAt = plantedAt + growSeconds,
 		SizeRoll = sizeRoll,
 		Mutation = mutation,
 		InstantGrown = false,
@@ -146,6 +154,7 @@ local function onPlant(player: Player, index: number, seedId: string)
 	if seed.Tier >= 3 then
 		progression():Track(player, "PlantUncommon", 1)
 	end
+	TutorialService:OnEvent(player, "Plant")
 	DataService:SyncState(player)
 end
 
@@ -186,10 +195,15 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 	)
 	carats = math.floor(carats * 100 + 0.5) / 100 -- 2 decimals, the leaderboard's precision
 
-	-- 3. Grant (one economy Source event).
+	-- 3. Grant (one economy Source event), plus the tutorial bonus on the tutorial's first shatter as its own
+	-- Onboarding event. The bonus is read here, before step 6b moves the tutorial on.
 	DataService:AddCoins(player, coins, Enum.AnalyticsEconomyTransactionType.Gameplay.Name, seed.Id)
 	data.Stats.Shatters += 1
 	data.Stats.CoinsEarned += coins
+	local bonusCoins = TutorialService:BonusCoins(player)
+	if bonusCoins > 0 then
+		DataService:AddCoins(player, bonusCoins, Enum.AnalyticsEconomyTransactionType.Onboarding.Name, "TutorialBonus")
+	end
 
 	local result = {
 		pedestal = index,
@@ -199,6 +213,8 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 		sizeTier = Rolls.sizeTierName(crystal.SizeRoll, RollsConfig.Size),
 		newBest = false,
 		instantGrown = crystal.InstantGrown == true,
+		bonusCoins = bonusCoins, -- batch 4: the tutorial bonus (0 normally), shown on the result card
+		seedId = seed.Id, -- batch 4: the result card pitches the shatter sound by the seed's tier
 	}
 
 	-- 4. Codex, goals, tier unlock.
@@ -217,6 +233,9 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 
 	-- 6. Rare finds are announced to the server.
 	social():Announce(player, result, seed)
+
+	-- 6b. Tutorial steps 3 (first shatter) and 7 (first mutation). Data only.
+	TutorialService:OnEvent(player, "Shatter", { mutation = crystal.Mutation })
 
 	-- 7. Clear the pedestal. The caller sends ShatterResult, then StateSync.
 	applyAttributes(pedestal, nil)

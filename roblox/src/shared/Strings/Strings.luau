@@ -12,6 +12,11 @@ function Strings.get(key: string, params: { [string]: any }?): string
 	return Format.interpolate(text, params)
 end
 
+-- A server message (Toast or Announce payload): like get, then double spaces from empty parameters are removed.
+function Strings.message(key: string, params: { [string]: any }?): string
+	return Format.tidySpaces(Strings.get(key, params))
+end
+
 function Strings.has(key: string): boolean
 	return en[key] ~= nil
 end

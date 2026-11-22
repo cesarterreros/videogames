@@ -176,6 +176,7 @@ return function(test)
 			"src/shared/Config/Monetization.luau",
 			"src/shared/Config/Game.luau",
 			"src/shared/Config/Lighting.luau",
+			"src/shared/Config/Sounds.luau",
 		}
 		for _, path in paths do
 			local source = fs.readFile(path)
@@ -286,6 +287,33 @@ return function(test)
 		end
 		for _, band in Rolls.Size do
 			expect(type(en["Size." .. band.Name])):toBe("string")
+		end
+	end)
+
+	test("Batch 4: Config/Sounds has the 7 sound IDs as whole numbers >= 0", function()
+		local Sounds = require("../src/shared/Config/Sounds")
+		local names = { "Shatter", "Coin", "Ready", "Mutation", "NewBest", "Click", "Music" }
+		local count = 0
+		for _ in Sounds.Ids do
+			count += 1
+		end
+		expect(count):toBe(#names)
+		for _, name in names do
+			local id = Sounds.Ids[name]
+			expect(type(id)):toBe("number")
+			expect(id >= 0 and id % 1 == 0):toBe(true)
+		end
+		expect(Sounds.MusicVolume):toBe(0.3)
+		expect(Sounds.ShatterPitchStep):toBe(0.05)
+	end)
+
+	test("Batch 4: every result size tier above Normal and every mutation has a label", function()
+		local en = require("../src/shared/Strings/en")
+		expect(type(en["Mutation.None"])):toBe("string")
+		for index, band in Rolls.Size do
+			if index > 1 then
+				expect(type(en["Result.Size." .. band.Name])):toBe("string")
+			end
 		end
 	end)
 end

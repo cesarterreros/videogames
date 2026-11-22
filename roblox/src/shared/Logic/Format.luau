@@ -69,6 +69,15 @@ function Format.interpolate(template: string, params: { [string]: any }?): strin
 	return result
 end
 
+-- Collapses runs of spaces and trims the ends. A message parameter can be empty (mutation "" for a crystal with
+-- no mutation), which would otherwise leave "New in Codex:  Quartz".
+function Format.tidySpaces(text: string): string
+	local result = string.gsub(text, " +", " ")
+	result = string.gsub(result, "^ ", "")
+	result = string.gsub(result, " $", "")
+	return result
+end
+
 -- Countdown from remaining seconds, rounded up so it reaches 0:00 only when time is up: 17.2 -> "0:18",
 -- 62 -> "1:02", 3725 -> "1:02:05". Negative values show "0:00".
 function Format.countdown(seconds: number): string

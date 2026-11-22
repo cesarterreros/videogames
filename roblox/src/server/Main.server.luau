@@ -9,6 +9,7 @@ local order: { string } = {
 	"RemoteService",
 	"DataService",
 	"SettingsService",
+	"TutorialService",
 	"MapService",
 	"PlotService",
 	"CrystalService",
