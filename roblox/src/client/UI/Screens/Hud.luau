@@ -21,6 +21,8 @@ local COIN_TWEEN_SECONDS = 0.4 -- time the coin counter takes to tick up to a bi
 local MUSIC_TAP_HOLD = 1.5 -- after a tap, the icon and label ignore the snapshot for this long
 local LOOP_SECONDS = 1
 local FALLBACK_SURGE_MINUTES = 5 -- only reached if Config.Economy is missing SurgeMinutes
+local LUCK_AD_RECHECK_SECONDS = 30 -- how often the HUD re-asks the ad service about the free-luck ad
+local LUCK_AD_MAX_LEFT = 300 -- the free-luck ad is only offered in the last five minutes of a boost
 
 export type Screen = {
 	Root: Frame,
@@ -64,6 +66,10 @@ function Hud.new(ctx: any): Screen
 	root.Visible = true
 
 	local buttons: { [string]: TextButton } = {}
+
+	-- The newest snapshot, kept for the once-a-second refresh. Declared up here because the buttons built
+	-- below (Auto, and the monetization refresh) read it from their handlers.
+	local latest: any = nil
 
 	-- Set later, once the music button exists; the button's OnClick only forwards to it.
 	local musicTap: () -> () = function() end
@@ -408,15 +414,99 @@ function Hud.new(ctx: any): Screen
 	shatterButton.Visible = false
 	buttons.ShatterAll = shatterButton
 
-	-- 6. Bottom right: reserved space for the monetization entry points (batch 5).
+	-- Batch 5 monetization state: which way the luck button acts, and the cached free-luck ad probe.
+	local luckMode = "Hidden" -- "Hidden" | "Active" | "Ad" | "Buy"
+	local luckAdAvailable = false
+	local luckAdCheckAt = 0
+	local luckAdChecking = false
+	local refreshMonetization: (snapshot: any) -> ()
+
+	-- What a tap on the luck button does in its current mode.
+	local function onLuckClick()
+		if luckMode == "Active" then
+			ctx.UI:Open("Odds") -- shows the boosted odds
+		elseif luckMode == "Ad" then
+			task.spawn(function()
+				if not ctx.Purchase:RequestAd("Luck") then
+					ctx.UI:Toast(Strings.get("Toast.NoAd"))
+				end
+				luckAdAvailable = false
+				luckAdCheckAt = 0
+			end)
+		elseif luckMode == "Buy" then
+			ctx.Purchase:PromptProduct("LuckBoost")
+		end
+	end
+
+	-- 6. Bottom right, left of the jump button: the Store and Luck buttons (batch 5, change H), a hint label above
+	-- them, and the Auto Shatter toggle left of Shatter All. All three buttons sit in `buttons`, so the tutorial
+	-- lock disables them.
 	local monetizationSlot = Instance.new("Frame")
 	monetizationSlot.Name = "MonetizationSlot"
 	monetizationSlot.AnchorPoint = Vector2.new(1, 1)
 	monetizationSlot.Position = UDim2.new(1, -104, 1, -EDGE)
-	monetizationSlot.Size = UDim2.fromOffset(100, 64)
+	monetizationSlot.Size = UDim2.fromOffset(128, 56)
 	monetizationSlot.BackgroundTransparency = 1
 	monetizationSlot.Active = false
 	monetizationSlot.Parent = root
+
+	local storeButton = Components.button({
+		Name = "Store",
+		Text = Theme.Icons.Store .. "\n" .. Strings.get("Hud.Store"),
+		Size = UDim2.fromOffset(60, 56),
+		Position = UDim2.fromOffset(0, 0),
+		TextSize = 14,
+		OnClick = function()
+			ctx.UI:Open("Store")
+		end,
+		Parent = monetizationSlot,
+	})
+	buttons.Store = storeButton
+
+	local luckButton = Components.button({
+		Name = "Luck",
+		Text = "",
+		Size = UDim2.fromOffset(60, 56),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		TextSize = 14,
+		OnClick = onLuckClick,
+		Parent = monetizationSlot,
+	})
+	luckButton.Visible = false
+	buttons.Luck = luckButton
+
+	local luckHint = Components.label({
+		Name = "LuckHint",
+		Text = "",
+		Size = UDim2.fromOffset(128, 18),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -104, 1, -EDGE - 56 - 2),
+		Color = COLORS.Muted,
+		XAlignment = Enum.TextXAlignment.Right,
+		Parent = root,
+	})
+	luckHint.TextScaled = true
+	local luckHintSize = Instance.new("UITextSizeConstraint")
+	luckHintSize.MaxTextSize = 12
+	luckHintSize.Parent = luckHint
+	luckHint.Visible = false
+
+	local autoButton = Components.button({
+		Name = "Auto",
+		Text = Theme.Icons.Auto .. " " .. Strings.get("Hud.Auto"),
+		Size = UDim2.fromOffset(80, SHATTER_H),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(0.5, -(SHATTER_W / 2) - 8, 1, -EDGE),
+		TextSize = 16,
+		OnClick = function()
+			local on = isTable(latest) and isTable(latest.Settings) and latest.Settings.AutoShatter == true
+			ctx.Remotes:WaitForChild("SetSetting"):FireServer("AutoShatter", not on)
+		end,
+		Parent = root,
+	})
+	autoButton.Visible = false
+	buttons.Auto = autoButton
 
 	-- Length of the surge window, straight from the config.
 	local function surgeMinutes(): number
@@ -534,8 +624,101 @@ function Hud.new(ctx: any): Screen
 		showMusicIcon(on)
 	end
 
-	-- The newest snapshot, kept for the once-a-second refresh.
-	local latest: any = nil
+	-- Counts used while the snapshot has none yet: a fresh day with every ad still available.
+	local EMPTY_AD_COUNTS = { Date = "", FinishNow = 0, Luck = 0, CoinPouch = 0 }
+
+	-- Repaints the Store button, the luck button, the hint above them and the Auto Shatter toggle. Never yields:
+	-- the one yielding call (the ad probe) runs in its own task and repaints again when it answers.
+	refreshMonetization = function(snapshot: any)
+		local now = ctx.Now()
+		local state = if isTable(snapshot) then snapshot else {}
+		local m = if isTable(state.Monetization) then state.Monetization else {}
+		local endsAt = num(m.LuckBoostEndsAt, 0)
+
+		storeButton.Visible = true
+		autoButton.Visible = ctx.Purchase:OwnsPass("AutoShatter")
+		local settings = state.Settings
+		local autoOn = isTable(settings) and settings.AutoShatter == true
+		local autoColor = if autoOn then COLORS.Good else COLORS.PanelLight
+		-- While the tutorial lock has the button disabled, that grey is the colour to keep.
+		if Components.isEnabled(autoButton) then
+			autoButton.BackgroundColor3 = Theme.color(autoColor)
+			autoButton:SetAttribute("NormalColor", autoColor)
+		end
+
+		if ctx.Purchase:IsHidden("Product", "LuckBoost") then
+			luckMode = "Hidden"
+			luckButton.Visible = false
+			luckHint.Visible = false
+			return
+		end
+
+		if endsAt > now then
+			luckMode = "Active"
+			luckButton.Text = Theme.Icons.Luck
+				.. "\n"
+				.. Strings.get("Hud.LuckActive", { time = Format.countdown(endsAt - now) })
+			luckButton.TextColor3 = Theme.color(COLORS.Gold)
+			luckButton.Visible = true
+			luckHint.Visible = false
+			return
+		end
+
+		-- No boost running: offer the free video once the caps allow it, otherwise the paid product.
+		local canAd = ctx.Logic.LuckBoost.canWatchAd(now, endsAt, LUCK_AD_MAX_LEFT)
+		local adCounts = if isTable(m.AdCounts) then m.AdCounts else EMPTY_AD_COUNTS
+		local ok, reason = ctx.Logic.AdCaps.check(
+			adCounts,
+			ctx.Logic.WeekId.dateString(now),
+			"Luck",
+			now,
+			num(m.LastAdAt, 0),
+			ctx.Config.Monetization.Ads
+		)
+		local capsAllow = ok or reason == "Cooldown"
+
+		if canAd and capsAllow and not ctx.Purchase:IsRestricted() then
+			-- Re-probe the ad service every LUCK_AD_RECHECK_SECONDS; one answer covers a single ad.
+			if not luckAdChecking and now - luckAdCheckAt >= LUCK_AD_RECHECK_SECONDS then
+				luckAdChecking = true
+				luckAdCheckAt = now
+				task.spawn(function()
+					luckAdAvailable = ctx.Purchase:CheckAd()
+					luckAdChecking = false
+					refreshMonetization(latest)
+				end)
+			end
+		else
+			luckAdAvailable = false
+		end
+
+		if luckAdAvailable and canAd and capsAllow then
+			luckMode = "Ad"
+			luckButton.Text = Theme.Icons.Ad .. "\n" .. Strings.get("Hud.LuckFree")
+			luckButton.TextColor3 = Theme.color(COLORS.Text)
+			luckHint.Text = Strings.get("Ad.Subtitle")
+			luckHint.Visible = true
+		else
+			luckMode = "Buy"
+			luckButton.Text = Theme.Icons.Luck .. "\n" .. ctx.Purchase:PriceText("Product", "LuckBoost")
+			luckButton.TextColor3 = Theme.color(COLORS.Text)
+			-- The hint points at the free alternative: the next surge window, unless one is open right now.
+			local minutes = surgeMinutes()
+			if not ctx.Logic.Surge.isActive(now, minutes) then
+				local nextStart = ctx.Logic.Surge.nextStart(now, minutes)
+				luckHint.Text = Strings.get("Hud.NextFreeSurge", { time = Format.countdown(nextStart - now) })
+				luckHint.Visible = true
+			else
+				luckHint.Visible = false
+			end
+		end
+		luckButton.Visible = true
+	end
+
+	-- Prices, the policy flag and owned passes arrive after the HUD is built: repaint when they do.
+	ctx.Purchase.Changed:Connect(function()
+		refreshMonetization(latest)
+	end)
 
 	-- Refreshes every part of the HUD from a public-profile snapshot, in place.
 	local function update(snapshot: any)
@@ -548,6 +731,7 @@ function Hud.new(ctx: any): Screen
 		refreshDots(snapshot)
 		refreshMusic(snapshot)
 		refreshShatterAll(snapshot)
+		refreshMonetization(snapshot)
 	end
 
 	local screen: Screen = {
@@ -570,6 +754,7 @@ function Hud.new(ctx: any): Screen
 	refreshSurge()
 	refreshWeeklyBest(nil)
 	refreshMusic(nil)
+	refreshMonetization(nil)
 
 	-- Once-a-second refresh: countdowns, ripening crystals, the ready sound and things that roll over
 	-- (the UTC date and the ISO week) while the HUD sits open.

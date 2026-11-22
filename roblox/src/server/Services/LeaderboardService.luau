@@ -17,6 +17,10 @@ local WeekId = require(Shared.Logic.WeekId)
 local Format = require(Shared.Logic.Format)
 local Strings = require(Shared.Strings.Strings)
 
+local MarketplaceService = game:GetService("MarketplaceService")
+local PassService = require(script.Parent.PassService)
+local MonetizationIds = require(script.Parent.MonetizationIds)
+
 local LeaderboardService = {}
 
 local IS_STUDIO = RunService:IsStudio()
@@ -41,6 +45,8 @@ local pending: { [string]: { [number]: number } } = {}
 local flushing = false
 local rowLabels: { TextLabel } = {}
 local nameCache: { [number]: string } = {} -- userId -> DisplayName, kept for the server's lifetime
+local vipCache: { [number]: boolean } = {} -- userId -> owns VIP, for players not in this server (server lifetime)
+local VIP_MARK = "👑 " -- batch 5: VIP players' rows (cosmetic only)
 
 local function storeFor(weekId: string): OrderedDataStore
 	return DataStoreService:GetOrderedDataStore(GameConfig.LeaderboardStorePrefix .. weekId)
@@ -153,11 +159,36 @@ local function resolveNames(userIds: { number })
 	end
 end
 
-local function rowText(rank: number, name: string?, value: number?): string
+-- Whether a board entry owns VIP: from PassService for players in this server, otherwise one cached
+-- UserOwnsGamePassAsync call per user (a failed call isn't cached and counts as no). Yields; refresh only.
+local function isVip(userId: number): boolean
+	local passId = MonetizationIds.passId("VIP")
+	if passId == nil or userId <= 0 then
+		return false
+	end
+	local player = Players:GetPlayerByUserId(userId)
+	if player ~= nil then
+		return PassService:Owns(player, "VIP")
+	end
+	local cached = vipCache[userId]
+	if cached ~= nil then
+		return cached
+	end
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(userId, passId)
+	end)
+	if ok then
+		vipCache[userId] = owns == true
+		return owns == true
+	end
+	return false
+end
+
+local function rowText(rank: number, name: string?, value: number?, vip: boolean?): string
 	if name == nil or value == nil then
 		return ("#%d  %s"):format(rank, Strings.get("Board.Empty"))
 	end
-	return ("#%d  %s  %s"):format(rank, name, Format.carats(value / 100))
+	return ("#%d  %s%s  %s"):format(rank, if vip then VIP_MARK else "", name, Format.carats(value / 100))
 end
 
 -- Reads the current week's top rows and writes them onto the board. A failed read keeps the last content.
@@ -185,13 +216,17 @@ local function refresh()
 		table.insert(ids, entry.userId)
 	end
 	resolveNames(ids)
+	local vip: { [number]: boolean } = {}
+	for _, userId in ids do
+		vip[userId] = isVip(userId)
+	end
 
 	for rank, label in rowLabels do
 		local entry = entries[rank]
 		if entry == nil then
 			label.Text = rowText(rank, nil, nil)
 		else
-			label.Text = rowText(rank, nameCache[entry.userId] or "…", entry.value)
+			label.Text = rowText(rank, nameCache[entry.userId] or "…", entry.value, vip[entry.userId])
 		end
 	end
 	if IS_STUDIO then

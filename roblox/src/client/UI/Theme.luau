@@ -48,6 +48,11 @@ Theme.Icons = {
 	Brightness = "☀",
 	Time = "⏱",
 	Close = "X",
+	-- Batch 5: monetization (every ad button carries the TV icon: ad disclosure).
+	Ad = "📺",
+	Store = "🛍️",
+	Luck = "🍀",
+	Auto = "🤖",
 }
 
 -- Parses "#RRGGBB" (or "RRGGBB", any case) into 0..255 integer channels; errors on anything else.

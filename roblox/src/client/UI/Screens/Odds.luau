@@ -1,8 +1,9 @@
 --!strict
 -- Odds.luau - the odds panel: two side-by-side tables, one for the size bands and one for the mutation
--- bands, plus the "None" remainder. While a surge is live the boosted mutation chances are shown in gold
--- with the surge multiplier appended. The tables are built once in new(); refresh only rewrites texts and
--- colours in place, and it ticks once a second so a surge opening or closing is picked up live.
+-- bands, plus the "None" remainder. While a Crystal Surge and/or the player's paid Luck Boost is live the
+-- mutation chances shown are the player's true odds (the two multiply, capped at x3 like the server roll),
+-- in gold with each multiplier appended. The tables are built once in new(); refresh only rewrites texts
+-- and colours in place, and it ticks once a second so a surge opening or closing is picked up live.
 
 -- Row layout, in pixels inside each table frame.
 local HEADER_H = 24
@@ -174,8 +175,8 @@ function Odds.new(ctx: any): Screen
 		end
 	end
 
-	-- Footnote under both tables.
-	Components.label({
+	-- Footnote under both tables: it says the odds are the base ones, or that a boost is live.
+	local noteLabel = Components.label({
 		Name = "Note",
 		Text = Strings.get("Odds.Note"),
 		Size = UDim2.new(1, 0, 0, NOTE_H),
@@ -187,17 +188,36 @@ function Odds.new(ctx: any): Screen
 		Parent = content,
 	})
 
-	-- Rewrites the mutation table for the current surge state; never closes the panel.
+	-- Rewrites the mutation table and the footnote for the current surge + Luck Boost state; never closes
+	-- the panel.
 	local function refresh()
 		local now = ctx.Now()
-		local active = false
+		local surgeActive = false
 		if typeof(now) == "number" then
-			active = ctx.Logic.Surge.isActive(now, surgeMinutes)
+			surgeActive = ctx.Logic.Surge.isActive(now, surgeMinutes)
 		end
 
-		local mult = if active then surgeMult else 1
-		local boosted = active and surgeMult > 1
-		local boostText = Strings.get("Odds.SurgeBoost", { mult = surgeMult })
+		-- The player's own Luck Boost (from the snapshot) multiplies with the surge, capped like the server roll.
+		local snapshot = ctx.State:Get()
+		local monetization = if isTable(snapshot) and isTable(snapshot.Monetization) then snapshot.Monetization else {}
+		local luckEndsAt = num(monetization.LuckBoostEndsAt, 0)
+		local luckConfig = if isTable(ctx.Config.Monetization) then ctx.Config.Monetization.LuckBoost else nil
+		local luckMult = if isTable(luckConfig) then num(luckConfig.Mult, 1) else 1
+		local maxTotal = if isTable(luckConfig) then num(luckConfig.MaxTotalMult, 1) else 1
+		local luckActive = typeof(now) == "number" and now < luckEndsAt
+		local mult = 1
+		if typeof(now) == "number" then
+			mult = ctx.Logic.LuckBoost.chanceMult(now, luckEndsAt, surgeActive, luckMult, surgeMult, maxTotal)
+		end
+		local boosted = mult > 1
+		local parts = {}
+		if surgeActive and surgeMult > 1 then
+			table.insert(parts, Strings.get("Odds.SurgeBoost", { mult = surgeMult }))
+		end
+		if luckActive and luckMult > 1 then
+			table.insert(parts, Strings.get("Odds.LuckBoost", { mult = luckMult }))
+		end
+		local boostText = table.concat(parts, " ")
 
 		-- "None" is whatever is left once the (surge-scaled) mutation chances are taken out.
 		local spent = 0
@@ -233,6 +253,15 @@ function Odds.new(ctx: any): Screen
 				row.Percent.TextColor3 = Theme.color(COLORS.Muted)
 			end
 			row.Percent.Text = text
+		end
+
+		-- The footnote explains the base odds, or says these are the boosted ones while a boost is live.
+		if boosted then
+			noteLabel.Text = Strings.get("Odds.BoostedNote")
+			noteLabel.TextColor3 = Theme.color(COLORS.Gold)
+		else
+			noteLabel.Text = Strings.get("Odds.Note")
+			noteLabel.TextColor3 = Theme.color(COLORS.Muted)
 		end
 	end
 

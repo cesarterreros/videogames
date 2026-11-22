@@ -11,6 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Strings = require(Shared.Strings.Strings)
 local DataService = require(script.Parent.DataService)
 local MapService = require(script.Parent.MapService)
+local PassService = require(script.Parent.PassService)
 
 local PlotService = {}
 
@@ -44,6 +45,36 @@ local function setSignText(plot: Model, text: string)
 	if label ~= nil and label:IsA("TextLabel") then
 		label.Text = text
 	end
+end
+
+-- Batch 5: a gold trim around the sign of a VIP owner's cave (cosmetic only). Made on first use inside SignGui.
+local VIP_TRIM_COLOR = Color3.fromRGB(255, 200, 60)
+local VIP_TRIM_THICKNESS = 10
+
+local function setVipTrim(plot: Model, on: boolean)
+	local sign = plot:FindFirstChild("Sign")
+	local gui = sign and sign:FindFirstChild("SignGui")
+	if gui == nil then
+		return
+	end
+	local trim = gui:FindFirstChild("VipTrim")
+	if trim == nil then
+		if not on then
+			return
+		end
+		local frame = Instance.new("Frame")
+		frame.Name = "VipTrim"
+		frame.Size = UDim2.fromScale(1, 1)
+		frame.BackgroundTransparency = 1
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = VIP_TRIM_COLOR
+		stroke.Thickness = VIP_TRIM_THICKNESS
+		stroke.Parent = frame
+		frame.Parent = gui
+		trim = frame
+	end
+	(trim :: GuiObject).Visible = on
 end
 
 -- The lowest-index plot that nobody owns yet, or nil when every plot is taken.
@@ -96,6 +127,7 @@ local function assignPlot(player: Player)
 
 	plot:SetAttribute("OwnerUserId", player.UserId)
 	setSignText(plot, player.DisplayName)
+	setVipTrim(plot, PassService:Owns(player, "VIP"))
 	plotOf[player] = plot
 
 	assignedEvent:Fire(player, plot)
@@ -134,6 +166,7 @@ local function releasePlot(player: Player)
 
 	plot:SetAttribute("OwnerUserId", 0)
 	setSignText(plot, "")
+	setVipTrim(plot, false)
 
 	local pedestals = plot:FindFirstChild("Pedestals")
 	if pedestals ~= nil then
@@ -208,6 +241,14 @@ function PlotService:Start()
 	end
 
 	Players.PlayerRemoving:Connect(releasePlot)
+
+	-- VIP confirmed after the plot was assigned (the ownership check runs in parallel), or bought in the session.
+	PassService.OwnershipChanged:Connect(function(player: Player, passKey: string, owns: boolean)
+		local plot = plotOf[player]
+		if passKey == "VIP" and plot ~= nil then
+			setVipTrim(plot, owns)
+		end
+	end)
 end
 
 -- The player's plot, or nil while their profile loads and after they leave.

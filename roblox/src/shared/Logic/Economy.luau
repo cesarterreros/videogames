@@ -111,4 +111,10 @@ function Economy.surpriseSeedId(seeds: { Seed }, highestTier: number): string
 	return ""
 end
 
+-- Coins in a Coin Pouch: `mult` × the base value of the player's highest unlocked seed (same lookup and fallback as
+-- goalReward), worked out when the receipt is processed.
+function Economy.coinPouchAmount(seeds: { Seed }, highestTier: number, mult: number): number
+	return Economy.goalReward(seeds, highestTier, mult)
+end
+
 return Economy

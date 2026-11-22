@@ -136,23 +136,47 @@ return function(test)
 		expect(Progression.GoalsPerDay <= #Progression.GoalPool):toBeTruthy()
 	end)
 
-	test("Monetization: 5 passes and 10 products, each with numeric Id and DefaultPrice > 0", function()
+	test("Monetization: 5 passes and 10 products, each with DefaultPrice > 0", function()
 		local Monetization = require("../src/shared/Config/Monetization")
 		local passCount, productCount = 0, 0
 		for _, pass in Monetization.Passes do
 			passCount += 1
-			expect(type(pass.Id)):toBe("number")
-			expect(pass.Id >= 0):toBeTruthy()
 			expect(pass.DefaultPrice > 0):toBeTruthy()
 		end
 		for _, product in Monetization.Products do
 			productCount += 1
-			expect(type(product.Id)):toBe("number")
-			expect(product.Id >= 0):toBeTruthy()
 			expect(product.DefaultPrice > 0):toBeTruthy()
 		end
 		expect(passCount):toBe(5)
 		expect(productCount):toBe(10)
+	end)
+
+	test("Monetization: every experience in IdsByGameId has a whole-number ID for each pass and product", function()
+		local Monetization = require("../src/shared/Config/Monetization")
+		local problems = {}
+		local seen = {}
+		for gameId, ids in Monetization.IdsByGameId do
+			for _, group in { "Passes", "Products" } do
+				local keys = 0
+				for _ in ids[group] do
+					keys += 1
+				end
+				if keys ~= (if group == "Passes" then 5 else 10) then
+					table.insert(problems, tostring(gameId) .. " " .. group .. " has " .. keys .. " keys")
+				end
+				for key in Monetization[group] do
+					local id = ids[group][key]
+					if type(id) ~= "number" or id <= 0 or id % 1 ~= 0 then
+						table.insert(problems, tostring(gameId) .. " " .. key .. " = " .. tostring(id))
+					elseif seen[id] then
+						table.insert(problems, tostring(gameId) .. " " .. key .. " repeats " .. tostring(id))
+					else
+						seen[id] = true
+					end
+				end
+			end
+		end
+		expect(table.concat(problems, ", ")):toBe("")
 	end)
 
 	test("Monetization: ad caps sum to at most DailyTotal", function()

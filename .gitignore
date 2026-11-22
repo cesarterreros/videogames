@@ -5,3 +5,5 @@
 *.rbxlx.lock
 # Rojo
 sourcemap.json
+# Throwaway upload files (placeholders); real icons go in uploads/icons and are committed
+uploads/tmp/

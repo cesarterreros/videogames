@@ -579,7 +579,7 @@ You ended the test sessions, published, checked File → Version History and joi
 - **Leftovers:**
   - **Dev data:** your DEV profile is tutorial-done (skip rule), with Day 2 claimed, about 1.2K coins and a few plants; `Player_-1` and `Player_-2` were used (both tutorial-done). Test stores **`PlayerData_Test1` to `PlayerData_Test4`** hold finished tutorial profiles for your account; the next fresh-profile test needs `PlayerData_Test5`. `Config.Game.ProfileStoreName` is back to `PlayerData` (identical to the committed file).
   - **The DEV experience is published with batch 4.**
-  - **Git:** committed as `1d7b489` on `batch-4-ui-onboarding` and pushed (2026-11-21); no pull request yet. This status update is a follow-up commit.
+  - **Git:** committed as `1d7b489` on `batch-4-ui-onboarding` and pushed (2026-11-21), with this status update as `ceeb4bb`. Pull request #4 into `batch-1-setup` was merged on 2026-11-22.
   - **Still running:** the Rojo server on port 34872. The Device Simulator is on the Galaxy A06.
   - **`rojo build` output** is in the session scratchpad, outside the repo.
 - **Lessons:**
