@@ -1,6 +1,6 @@
 # Specification: Batch 5, monetization (passes, developer products, receipts, rewarded ads, offers, store UI)
 
-Status: approved 2026-11-18. In progress: tasks 0–12 done and committed (2026-11-22); changes G–S confirmed by you on 2026-11-22. **Next: task 13, in a new session: start at "Resume here".**
+Status: approved 2026-11-18. **Done 2026-11-22:** tasks 0–13 complete; see **Outcome** at the end (findings T1–T5 go to batch 6). Not committed yet.
 
 ## Context
 
@@ -17,7 +17,7 @@ Passes **must exist before launch** (your rule). It follows the architecture bui
 
 ### Context for a new session (read before task 1)
 
-**Continuing after task 12?** Go to **Resume here: task 13** below; it lists the state, the confirmed changes and the remaining steps.
+**Batch finished:** task 13's results are under **Task 13 checks** (end of Findings) and the **Outcome** follows it.
 
 1. [README.md](README.md): **Starting a new session** and **Delegation lessons**.
 2. This record.
@@ -683,4 +683,91 @@ The iPhone 7 numbers equal the plan's computed ones. Screenshots on all three sh
 ### Plan change S (from task 6; confirmed by you on 2026-11-22)
 
 - **S. A restricted player's coin-feeding receipt is granted and logged, not kept.** The purchase prompt opens on the client, so the server can't stop a purchase in advance; by the time a receipt arrives the Robux is taken, and an unresolved purchase is never refunded. If a receipt for a Coin Pouch, the Seed Bundle, the Starter Pack or the Luck Boost arrives for a player with `ArePaidRandomItemsRestricted`, it's granted and logged (an `Anomaly` custom event and a warning). The UI still hides those products, and the server still refuses everything it can refuse beforehand (Luck Boost ads, the Starter Pack and Double Coins offers). The products' external store page is off (`storePageEnabled` not set), so today such a receipt can only come from a modified client.
+
+### Task 13 checks (2026-11-22, new session)
+
+Rojo: the server from the last session (started 2026-11-21) still held port 34872 and served this project; three scripts matched their files byte for byte in Studio, so it was used as is.
+
+**Step 1, Play Solo, your taps (Galaxy A06 in the Device Simulator):**
+
+| Check | Result |
+|---|---|
+| Store from the HUD | **Passed.** Opens; prices in R$; the 5 passes show OWNED. |
+| Small Coin Pouch (sandbox) | **Passed.** `granted CoinPouchS (ad=false)` once; coins +1,200 (the card said 1.2K); economy event logged. |
+| Luck "📺 Free" | **Passed.** Test ad `ShowCompleted`; `granted LuckBoost (ad=true)` once through ProcessReceipt; the button turned to 🍀 + timer. |
+| CrystalMenu → Finish now (sandbox) | **Passed.** `granted InstantGrowS (ad=false)` once; crystal finished. The prompt showed R$ 8 because Roblox applied its own 15 % test coupon; our button shows the list price R$ 9. |
+| CrystalMenu → 📺 Finish free | **Passed.** `FinishNow -> ShowCompleted`, `granted InstantGrowS (ad=true)` once. |
+| CrystalMenu → Use token | **Passed.** Hidden with 0 tokens (correct). A test receipt through `DebugProcessReceipt` with no pending target kept an S token (`Toast.TokenSaved`); "Use token (S)" then appeared and finished the crystal (`Toast.TokenUsed`). |
+| Instant-grown and the board (change L) | **Passed.** A 4.08 ct instant-grown Citrine gave `newBest=false` with a weekly best of 2.0 ct. |
+| Auto | **Passed.** Toggles (the server got every tap); a Quartz shattered by itself; left **off**. |
+| VIP | **Passed.** "VIP" tag and trail while walking (the 👑 is only on board rows, as designed). |
+| Emoji size on the 60 px buttons | **Passed** (readable, your check). |
+| Offer popup | Not possible on your profile (day 2+, owns every pass): moved to steps 2 and 3. |
+
+**Step 2, Starter Pack on a day-1 profile** (store `PlayerData_Test5`, reverted afterwards: `git status` clean, Studio reads `PlayerData`): tutorial steps 1–8 driven through the remotes, all logged in order. At the 10th shatter: `[Offer] shown StarterPack`, funnel step 1. The client held the popup because the **Daily panel** (opened at the end of the tutorial) stayed open, and dropped it after 30 s, as designed (change N). Resent from the server with the same kind once the screen was clear; you bought it (sandbox): `granted StarterPack` once (+1,000 coins, 3 Citrine), "OfferPurchased", funnel steps 3 and 2 (in that order, see T5).
+
+**Step 3, local server with 2 players** (test players own no pass):
+
+| Check | Result |
+|---|---|
+| A's `RequestInstantGrow` vs B's crystal | **Passed.** The remote only takes an index into the caller's own plot; A's calls for 1 (ready) and 3 (empty) returned nil; B's growing crystal on pedestal 1 kept its PlantedAt/ReadyAt. |
+| `DebugPass_VIP` on A | **Passed.** `Pass_VIP = true`; B's client sees A's `VipTag` ("VIP") and `VipTrail`, both enabled. |
+| Double Coins offer | **Passed (server).** Both test players got `[Offer] shown DoubleCoins` about 30 s after joining. On Player2 the popup was dropped: Daily (a new day for that profile) was still open 30 s after joining (T1). |
+| Pass bought by a non-owner (sandbox) | **Passed.** Player2 bought Double Coins in the Store: `prompt closed … wasPurchased=true`, then "Studio test purchase … not confirmed by UserOwnsGamePassAsync; enabled for this session" (the change R fallback), `Pass_DoubleCoins = true`, funnel steps 2–3 and "OfferPurchased". |
+| Restricted player | Not checked (no restricted test account). |
+
+**Step 4, published DEV place and your phone** (test session ended first; you checked Version History; the profile's `MetaData.ActiveSession` named a live DEV server):
+
+| Check | Result |
+|---|---|
+| No 📺 anywhere (change Q) | **Passed.** Luck shows 🍀 + R$ 25; the hint reads "Next free Surge in …"; no ad button in Daily, Store or CrystalMenu. |
+| Store, Luck (prompt cancelled), Auto, CrystalMenu by touch | **Passed.** Auto left off. |
+| Emoji, VIP tag and trail, plot-sign gold trim | **Passed** (your screenshot). |
+| **Real 9 R$ purchase** (Instant Grow S) | **Passed: granted once.** Saved `ProcessedReceipts` went from 10 to 11 (one new ID, no duplicates); a rejoin granted nothing. The Citrine had become ready on its own while the prompt was open, so the server kept an **S token** instead of finishing it (the designed fallback; you then saw "Use token (S)"). |
+| Sale in the Creator Dashboard | **Not checked yet** (you will look later; sales can take a while to show). |
+
+**Step 5, review:** `MarketplaceService.ProcessReceipt` is assigned once ([ReceiptService.luau](../../roblox/src/server/Services/ReceiptService.luau), line 258). No price literals in client code; prices come from `PriceInRobux` (`GetProductInfoAsync`). `Rolls.size` has no paid input; `FinishNow` sets `ReadyAt = os.time()`, so overgrowth starts at zero; Fast Grow scales the growth phase only. Final: `lune run tests` **239 passed, 0 failed**; StyLua clean (Vendor skipped); `rojo build` succeeds; ProfileStore untouched.
+
+**Findings from task 13 (none changes money handling; decide in batch 6):**
+- **T1. Daily hides the session's one offer.** Daily opens by itself at the end of the tutorial (day 1) and on the first join of a day (day 2+); the offer waits only 30 s for a clear screen. A player who leaves Daily open misses the Starter Pack or Double Coins card for that session. Options: wait for Daily to close without the 30 s limit, or start the 30 s after Daily closes.
+- **T2. The luck button says "📺 Free" with nothing about Luck** while an ad is available. Option: "📺 Free Luck" or 🍀 with an ad mark.
+- **T3. Auto's only feedback is the button colour** (dark grey ↔ green); you reported "nothing happened". Option: "Auto ON / OFF" text and a toast.
+- **T4. Finish now is offered with seconds left.** A crystal can finish during the prompt; the player keeps a token (nothing lost) but sees no visible change. Option: hide Finish now in the last ~10 s, or a clearer "Token saved" toast.
+- **T5. Funnel step 2 can be logged after step 3:** "PromptOpened" is written when the prompt closes, and the receipt can arrive first. Each step is still logged once with the same funnel ID.
+
+## Outcome (2026-11-22)
+
+- **Built as specified**, with the confirmed changes G–S and the smaller decisions listed in "Resume here" and Progress.
+- **Bugs found and fixed:** in tasks 5–12 (see Progress: review fixes in Store, the result card's note, the locked-pedestal shatter). Task 13 found no bug; findings T1–T5 are UX and analytics points for batch 6.
+- **Who did what:**
+  - **DeepSeek Flash:** tasks 3, 4, 8, 11 (3 jobs), 12 (4 jobs + 1 retry). Jobs that stopped on their token budget: 4 and 11B (nothing missing, no retry) and 12B (half done, retried with DeepSeek per your rule). Every recovery journal checked and acknowledged.
+  - **Haiku:** task 10, accepted first time.
+  - **Orchestrator:** tasks 0, 1, 5, 6, 7, 9, 13 and all wiring and review fixes. **You:** task 2 inputs, the taps, the sandbox and real purchases.
+  - Nothing went to DeepSeek Pro.
+- **Tests:** `lune run tests` **239 passed, 0 failed** (179 before + 60 new); StyLua clean; `rojo build` succeeds.
+- **Each place checked:**
+
+  | Where | What | Result |
+  |---|---|---|
+  | Lune | Receipts, InstantGrow, LuckBoost, AdCaps, Economy additions | Passed |
+  | Studio Play Solo | Store, sandbox product purchases, test ads, CrystalMenu (3 options), tokens, Auto, VIP, board exclusion | Passed |
+  | Studio, fresh day-1 profile | Tutorial → 10th shatter → Starter Pack offer → purchase, funnel | Passed (popup dropped while Daily was open: T1) |
+  | Studio local server, 2 players | Cross-plot Instant Grow refused, VIP seen by the other player, Double Coins offer, non-owner pass purchase (change R fallback) | Passed |
+  | Published DEV place, your phone | No 📺, touch on every new button, icons, VIP, one real 9 R$ purchase granted once and not again on rejoin | Passed |
+
+- **Not verified:**
+  - **A restricted player** (no test account); the checks are one line each in the code.
+  - **The Creator Dashboard sale** of the real purchase (yours to check).
+  - **The ad refusal during the tutorial** and **a 15-second save timeout on a receipt** (not reproducible on demand).
+  - **The real purchase finishing a crystal on the phone:** it took the token fallback (T4); the finishing path was verified in Studio.
+- **Open items (not fixed in this batch):** T1–T5 above; from tasks 11–12: Daily's ad button appears up to 1 s after the panel opens; with both boosts an Odds row reads "⚡ ×2 Luck ×2" while the percentages use the capped ×3; batch 4's "READY!" label behind the HUD's top row.
+- **Leftovers:**
+  - **Dev data:** your DEV profile has about 7.5K coins, **1 S token** (from the real purchase), today's ad counts partly used, `Settings.AutoShatter = false`. Store **`PlayerData_Test5`** holds a finished tutorial profile with the Starter Pack bought; the next fresh-profile test needs `PlayerData_Test6`. Test profiles `Player_-1` / `Player_-2` used again (`Player_-2`'s Double Coins was a Studio session-only grant).
+  - **The DEV experience is published with batch 5.** Pass and product IDs exist only for DEV (`IdsByGameId`); the live experience gets its own at launch (batch 6).
+  - **MCP permissions:** `game-pass:write` and `developer-product:write` can go off until icons are added; the `uploads/` folder stays approved.
+  - **Still running:** the Rojo server on port 34872 (started 2026-11-21). The Device Simulator is on the Galaxy A06.
+- **Lessons:**
+  - **A popup that waits for a clear screen must account for panels that open by themselves** (Daily); test the offer with the real join flow, not only with scripted shatters.
+  - **Roblox's "Purchase completed" dialog names the product for both grant paths;** to know which path ran, read the server log or the saved profile.
+  - **A stale Rojo server from an earlier session can still serve the right project;** compare a script's `#Source` with the file size before trusting it.
 
