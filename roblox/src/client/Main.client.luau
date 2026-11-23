@@ -7,6 +7,7 @@ local order: { string } = {
 	"StateController",
 	"LightingController",
 	"SoundController",
+	"PurchaseController",
 	"UIController",
 	"BrightnessButton",
 	"CrystalRenderer",

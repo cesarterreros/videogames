@@ -8,6 +8,8 @@ local order: { string } = {
 	"Analytics",
 	"RemoteService",
 	"DataService",
+	"PassService",
+	"PolicyInfoService",
 	"SettingsService",
 	"TutorialService",
 	"MapService",
@@ -17,6 +19,10 @@ local order: { string } = {
 	"ProgressionService",
 	"SocialService",
 	"LeaderboardService",
+	"ReceiptService",
+	"RewardedAdService",
+	"OfferService",
+	"VipService",
 }
 
 local modules: { { name: string, module: any } } = {}

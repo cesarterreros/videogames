@@ -17,6 +17,9 @@ local LINE_2_Y = 32
 local LINE_2_H = 18
 local LINE_3_Y = 52
 local LINE_3_H = 18
+local INSTANT_H = 30 -- extra card height for the two-line instant-grown note
+local LINE_4_Y = 72
+local LINE_4_H = 26
 local BADGE_W = 90
 local BADGE_H = 18
 
@@ -191,10 +194,11 @@ function Result.new(ctx: any): Screen
 		local sizeTier = str(result.sizeTier, "Normal")
 		local newBest = result.newBest == true
 		local bonusCoins = num(result.bonusCoins, 0)
+		local instantGrown = result.instantGrown == true
 
 		local card = Instance.new("Frame")
 		card.Name = "Card" .. tostring(pedestal)
-		card.Size = UDim2.fromOffset(CARD_W, CARD_H)
+		card.Size = UDim2.fromOffset(CARD_W, if instantGrown then CARD_H + INSTANT_H else CARD_H)
 		card.BackgroundColor3 = Theme.color(COLORS.Panel)
 		card.BorderSizePixel = 0
 		card.Active = false
@@ -261,6 +265,22 @@ function Result.new(ctx: any): Screen
 			Color = line3Color,
 			Parent = card,
 		})
+
+		-- Guardrail 2: an instant-grown crystal doesn't count for the weekly board; say so on its card.
+		if instantGrown then
+			local note = Components.label({
+				Name = "InstantGrown",
+				Text = Strings.get("Result.InstantGrown"),
+				Size = UDim2.new(1, -8, 0, LINE_4_H),
+				Position = UDim2.fromOffset(4, LINE_4_Y),
+				Color = COLORS.Muted,
+				Parent = card,
+			})
+			local noteSize = note:FindFirstChildOfClass("UITextSizeConstraint")
+			if noteSize ~= nil then
+				noteSize.MaxTextSize = 11
+			end
+		end
 
 		-- Two loud facts at once: hang a small mutation pill on the card's top edge so nothing is hidden.
 		if loudFacts > 1 and hasMutation then

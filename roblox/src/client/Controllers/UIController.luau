@@ -22,11 +22,16 @@ local Surge = require(Shared.Logic.Surge)
 local Codex = require(Shared.Logic.Codex)
 local Goals = require(Shared.Logic.Goals)
 local Growth = require(Shared.Logic.Growth)
+local MonetizationConfig = require(Shared.Config.Monetization)
+local InstantGrow = require(Shared.Logic.InstantGrow)
+local AdCaps = require(Shared.Logic.AdCaps)
+local LuckBoost = require(Shared.Logic.LuckBoost)
 local WeekId = require(Shared.Logic.WeekId)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Components = require(script.Parent.Parent.UI.Components)
 local StateController = require(script.Parent.StateController)
 local SoundController = require(script.Parent.SoundController)
+local PurchaseController = require(script.Parent.PurchaseController)
 
 local Screens = script.Parent.Parent.UI.Screens
 
@@ -41,6 +46,9 @@ local SCREEN_ORDER: { string } = {
 	"Daily",
 	"Goals",
 	"Odds",
+	"Store",
+	"CrystalMenu",
+	"OfferPopup",
 	"Result",
 	"Toasts",
 }
@@ -54,6 +62,9 @@ local PANELS: { [string]: boolean } = {
 	Daily = true,
 	Goals = true,
 	Odds = true,
+	Store = true,
+	CrystalMenu = true,
+	OfferPopup = true,
 }
 
 -- HUD button name -> the panel a press opens, used only while the tutorial locks the HUD.
@@ -174,6 +185,7 @@ function UIController:Start()
 			Progression = Progression,
 			Game = Game,
 			Sounds = Sounds,
+			Monetization = MonetizationConfig,
 		},
 		Logic = {
 			Format = Format,
@@ -183,7 +195,12 @@ function UIController:Start()
 			Goals = Goals,
 			Growth = Growth,
 			WeekId = WeekId,
+			InstantGrow = InstantGrow,
+			AdCaps = AdCaps,
+			LuckBoost = LuckBoost,
 		},
+		-- Batch 5: the only way screens reach purchases, prices and ads (change G).
+		Purchase = PurchaseController,
 		Now = function(): number
 			return workspace:GetServerTimeNow()
 		end,
@@ -273,6 +290,32 @@ function UIController:Start()
 		if screen ~= nil then
 			pcall(screen.Open, payload)
 		end
+	end)
+
+	-- Batch 5, change N: the session's one offer waits for a clear screen (no result card, no panel open, the
+	-- tutorial done), for up to OFFER_WAIT_SECONDS; if the screen never clears, it is dropped for this session.
+	local OFFER_WAIT_SECONDS = 30
+	local offer = remotes:WaitForChild("Offer") :: RemoteEvent
+	offer.OnClientEvent:Connect(function(payload: any)
+		if typeof(payload) ~= "table" then
+			return
+		end
+		task.spawn(function()
+			local deadline = os.clock() + OFFER_WAIT_SECONDS
+			while os.clock() < deadline do
+				local snapshot = StateController:Get()
+				local tutorialDone = typeof(snapshot) == "table"
+					and typeof(snapshot.Tutorial) == "table"
+					and snapshot.Tutorial.Done == true
+				local result: any = screens.Result
+				local resultShowing = result ~= nil and result.IsOpen ~= nil and result.IsOpen() == true
+				if tutorialDone and openPanel == nil and not resultShowing then
+					UIController:Open("OfferPopup", payload)
+					return
+				end
+				task.wait(0.5)
+			end
+		end)
 	end)
 
 	local function messageHandler(gold: boolean)

@@ -17,6 +17,9 @@ local CLAIM_H = 52
 local HINT_Y = CLAIM_Y + CLAIM_H + 6
 local HINT_H = 22
 local HINT_W = 300
+local AD_SHIFT = 108 -- each button's centre moves this far from the row centre when the ad button shows
+local AD_W = 200
+local AD_RECHECK_SECONDS = 30
 local REFRESH_SECONDS = 1 -- the UTC date can roll over while the panel is open
 
 export type Screen = {
@@ -181,6 +184,40 @@ function Daily.new(ctx: any): Screen
 	})
 	comeBackLabel.Visible = false
 
+	-- The rewarded-ad button (plan change I): "📺 Bonus coins" with the "Watch a short ad" disclosure, right of
+	-- the Claimed button, only after claiming while an ad is available and today's CoinPouch ad is unused.
+	local adAvailable = false
+	local adCheckAt = -math.huge
+	local adChecking = false
+	local adButton = Components.button({
+		Name = "BonusAd",
+		Text = "",
+		Size = UDim2.fromOffset(AD_W, CLAIM_H),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, AD_SHIFT, 0, CLAIM_Y),
+		Color = COLORS.Gold,
+		TextColor = COLORS.Bg,
+		TextSize = 18,
+		OnClick = function()
+			task.spawn(function()
+				if not ctx.Purchase:RequestAd("CoinPouch") then
+					ctx.UI:Toast(Strings.get("Toast.NoAd"))
+				end
+				adAvailable = false
+				adCheckAt = -math.huge
+			end)
+		end,
+		Parent = content,
+	})
+	adButton.RichText = true
+	adButton.Text = Theme.Icons.Ad
+		.. " "
+		.. Strings.get("Ad.BonusCoins")
+		.. '\n<font size="11">'
+		.. Strings.get("Ad.Subtitle")
+		.. "</font>"
+	adButton.Visible = false
+
 	-- Repaints the tiles and the claim button from a snapshot; never rebuilds and never closes the panel.
 	local function refresh(snapshot: any)
 		local state = if isTable(snapshot) then snapshot else {}
@@ -231,6 +268,28 @@ function Daily.new(ctx: any): Screen
 			claimButton.TextColor3 = Theme.color(COLORS.Bg)
 			comeBackLabel.Visible = false
 		end
+
+		-- The bonus-ad button: claimed today, not restricted, today's CoinPouch ad unused, and an ad available
+		-- (probed at most every AD_RECHECK_SECONDS; one answer covers a single ad).
+		local monetization = if isTable(state.Monetization) then state.Monetization else {}
+		local counts = if isTable(monetization.AdCounts) then monetization.AdCounts else {}
+		local usedToday = counts.Date == today and num(counts.CoinPouch, 0) >= 1
+		local wantAd = claimedToday
+			and not usedToday
+			and not ctx.Purchase:IsRestricted()
+			and not ctx.Purchase:IsHidden("Product", "CoinPouchS")
+		if wantAd and root.Visible and not adChecking and now - adCheckAt >= AD_RECHECK_SECONDS then
+			adChecking = true
+			adCheckAt = now
+			task.spawn(function()
+				adAvailable = ctx.Purchase:CheckAd()
+				adChecking = false
+				refresh(ctx.State:Get())
+			end)
+		end
+		local showAd = wantAd and adAvailable
+		adButton.Visible = showAd
+		claimButton.Position = UDim2.new(0.5, if showAd then -AD_SHIFT else 0, 0, CLAIM_Y)
 	end
 
 	local screen: Screen = {

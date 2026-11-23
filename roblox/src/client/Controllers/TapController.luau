@@ -12,6 +12,9 @@ local Strings = require(Shared.Strings.Strings)
 local Format = require(Shared.Logic.Format)
 local Growth = require(Shared.Logic.Growth)
 local UIController = require(script.Parent.UIController)
+local PurchaseController = require(script.Parent.PurchaseController)
+local StateController = require(script.Parent.StateController)
+local InstantGrow = require(Shared.Logic.InstantGrow)
 
 local TapController = {}
 
@@ -151,19 +154,37 @@ local function shatter(index: number)
 	event:FireServer(index)
 end
 
--- Acts on a pedestal's attributes: shatter a ripe crystal, bubble a growing one, or open the seed picker.
-local function tapPedestal(pedestal: BasePart, index: number)
-	if attr(pedestal, "Unlocked", false) ~= true then
-		return
+-- Batch 5 (change J): a growing crystal opens the crystal menu when it offers something (Finish now with a
+-- product ID, or a token that covers it) and the tutorial is over; otherwise the countdown bubble shows.
+local function crystalMenuHasOptions(readyAt: number): boolean
+	local snapshot = StateController:Get()
+	if snapshot == nil or typeof(snapshot.Tutorial) ~= "table" or snapshot.Tutorial.Done ~= true then
+		return false
 	end
+	local key = PurchaseController:InstantGrowKey(readyAt - workspace:GetServerTimeNow())
+	if PurchaseController:HasProduct(key) then
+		return true
+	end
+	local monetization = snapshot.Monetization
+	local tokens = if typeof(monetization) == "table" then monetization.InstantGrowTokens else nil
+	return typeof(tokens) == "table" and InstantGrow.pickToken(tokens, string.sub(key, -1)) ~= nil
+end
+
+-- Acts on a pedestal's attributes: shatter a ripe crystal, menu or bubble a growing one, or open the seed
+-- picker. A locked pedestal can still hold a crystal (Extra Pedestals lost): it can be shattered, not planted.
+local function tapPedestal(pedestal: BasePart, index: number)
 	local seedId = attr(pedestal, "SeedId", "")
 	if seedId == "" then
-		UIController:Open("SeedPicker", index)
+		if attr(pedestal, "Unlocked", false) == true then
+			UIController:Open("SeedPicker", index)
+		end
 		return
 	end
 	local readyAt = attr(pedestal, "ReadyAt", 0)
 	if Growth.isReady(workspace:GetServerTimeNow(), readyAt) then
 		shatter(index)
+	elseif crystalMenuHasOptions(readyAt) then
+		UIController:Open("CrystalMenu", index)
 	else
 		showBubble(pedestal, readyAt)
 	end

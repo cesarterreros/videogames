@@ -1,20 +1,22 @@
 --!strict
 -- Monetization tuning (passes, products, ads, luck boost); tuned after launch.
--- Ids are 0 placeholders, filled in after creating the items in the Creator Dashboard.
--- DefaultPrice is only an analytics label; the UI must read live prices with GetProductInfo.
+-- Pass and product IDs live in IdsByGameId, one table per experience (dev and live are different universes).
+-- DefaultPrice is only an analytics label; the UI must read live prices with GetProductInfoAsync.
 
 export type Pass = {
-	Id: number,
 	DefaultPrice: number,
-	GrowMult: number?,
+	GrowMult: number?, -- Fast Grow: growth-phase time multiplier
+	CoinMult: number?, -- Double Coins: shatter-coin multiplier
 }
 
 export type Product = {
-	Id: number,
 	DefaultPrice: number,
 	MaxSeconds: number?,
 	Mult: number?,
 	Count: number?,
+	Coins: number?, -- Starter Pack
+	SeedId: string?, -- Starter Pack
+	LuckMinutes: number?, -- Starter Pack
 }
 
 export type AdsConfig = {
@@ -30,33 +32,41 @@ export type LuckBoostConfig = {
 	MaxTotalMult: number,
 }
 
+export type ItemIds = {
+	Passes: { [string]: number },
+	Products: { [string]: number },
+}
+
 export type MonetizationConfig = {
 	Passes: { [string]: Pass },
 	Products: { [string]: Product },
 	Ads: AdsConfig,
 	LuckBoost: LuckBoostConfig,
 	ReceiptHistory: number,
+	PendingTargetSeconds: number,
+	ReceiptSaveTimeoutSeconds: number,
+	IdsByGameId: { [number]: ItemIds },
 }
 
 local Monetization: MonetizationConfig = {
 	Passes = {
-		FastGrow = { Id = 0, DefaultPrice = 249, GrowMult = 0.5 },
-		DoubleCoins = { Id = 0, DefaultPrice = 199 },
-		ExtraPedestals = { Id = 0, DefaultPrice = 149 },
-		AutoShatter = { Id = 0, DefaultPrice = 299 },
-		VIP = { Id = 0, DefaultPrice = 99 },
+		FastGrow = { DefaultPrice = 249, GrowMult = 0.5 },
+		DoubleCoins = { DefaultPrice = 199, CoinMult = 2 },
+		ExtraPedestals = { DefaultPrice = 149 },
+		AutoShatter = { DefaultPrice = 299 },
+		VIP = { DefaultPrice = 99 },
 	},
 	Products = {
-		InstantGrowS = { Id = 0, DefaultPrice = 9, MaxSeconds = 900 },
-		InstantGrowM = { Id = 0, DefaultPrice = 29, MaxSeconds = 7200 },
-		InstantGrowL = { Id = 0, DefaultPrice = 59 },
-		GrowAll = { Id = 0, DefaultPrice = 99 },
-		LuckBoost = { Id = 0, DefaultPrice = 25 },
-		CoinPouchS = { Id = 0, DefaultPrice = 19, Mult = 5 },
-		CoinPouchM = { Id = 0, DefaultPrice = 99, Mult = 30 },
-		CoinPouchL = { Id = 0, DefaultPrice = 249, Mult = 100 },
-		SeedBundle = { Id = 0, DefaultPrice = 39, Count = 3 },
-		StarterPack = { Id = 0, DefaultPrice = 49 },
+		InstantGrowS = { DefaultPrice = 9, MaxSeconds = 900 },
+		InstantGrowM = { DefaultPrice = 29, MaxSeconds = 7200 },
+		InstantGrowL = { DefaultPrice = 59 },
+		GrowAll = { DefaultPrice = 99 },
+		LuckBoost = { DefaultPrice = 25 },
+		CoinPouchS = { DefaultPrice = 19, Mult = 5 },
+		CoinPouchM = { DefaultPrice = 99, Mult = 30 },
+		CoinPouchL = { DefaultPrice = 249, Mult = 100 },
+		SeedBundle = { DefaultPrice = 39, Count = 3 },
+		StarterPack = { DefaultPrice = 49, Coins = 1000, SeedId = "Citrine", Count = 3, LuckMinutes = 30 },
 	},
 	Ads = {
 		CooldownSeconds = 60,
@@ -74,6 +84,33 @@ local Monetization: MonetizationConfig = {
 		MaxTotalMult = 3,
 	},
 	ReceiptHistory = 100,
+	PendingTargetSeconds = 60, -- how long an Instant Grow prompt (or ad) remembers its crystal
+	ReceiptSaveTimeoutSeconds = 15, -- ProcessReceipt waits this long for the save that records the purchase
+	-- game.GameId (universe ID, public) -> the IDs created in that experience. Any other experience, or an
+	-- unpublished place, gets no IDs, so its monetization stays hidden. The live experience is added at launch.
+	IdsByGameId = {
+		[10777641396] = { -- Crystal Grove DEV, created through Open Cloud on 2026-11-22
+			Passes = {
+				FastGrow = 2096118369,
+				DoubleCoins = 2092536394,
+				ExtraPedestals = 2093706287,
+				AutoShatter = 2092686441,
+				VIP = 2092878404,
+			},
+			Products = {
+				InstantGrowS = 3734749807,
+				InstantGrowM = 3734749816,
+				InstantGrowL = 3734749821,
+				GrowAll = 3734749828,
+				LuckBoost = 3734749833,
+				CoinPouchS = 3734749994,
+				CoinPouchM = 3734749998,
+				CoinPouchL = 3734750007,
+				SeedBundle = 3734750013,
+				StarterPack = 3734750019,
+			},
+		},
+	},
 }
 
 return Monetization

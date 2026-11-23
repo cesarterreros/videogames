@@ -32,6 +32,8 @@ Skill defaults: Haiku for small, fully specified edits; DeepSeek Flash for stand
 ### Delegation lessons (from batch 1)
 
 - **DeepSeek's shell is `cmd.exe`, not bash.** Give it this command for tests: `set PATH=C:\Users\<you>\.rokit\bin;%PATH% && cd /d C:\Projects\videogames\roblox && lune run tests`. Find `<you>` locally; don't write it in the records.
+- **A job that stops on its token budget can leave temporary files** (batch 5: a `tests_out.txt` test log in `roblox/`). After every job, check `git status` for untracked files besides the ones it was asked to create.
+- **In DeepSeek's shell, `lune` and `stylua` are already on PATH** (batch 5): don't change PATH there. `%USERPROFILE%` points at the workspace, so a `set PATH=%USERPROFILE%\.rokit\bin;…` prefix hides Lune.
 - **Tell DeepSeek to write each file in one Write call.** Batch 1's test-runner job ran out of turns (50) doing stub-then-small-Edits.
 - **One DeepSeek job at a time per workspace.** After each job: `get_deepseek_recovery`, review the files, run the tests, then `acknowledge_deepseek_mutations` with the exact IDs.
 - **Haiku subagents** do well with fully specified files (exact content or exact tables). Give them the contract text itself, not a pointer to a record.
@@ -51,6 +53,7 @@ Each batch is implemented in its own Claude session. Start every session like th
    - Format: `stylua src tests` (skip `src/server/Vendor`).
    - Build check: `rojo build -o <scratchpad>/test.rbxlx`.
    - Sync: run `rojo serve` in the background; you then click **Connect** in Studio's Rojo panel (the plugin is already installed).
+   - Uploads (batch 5): files the Studio MCP uploads to Roblox (Open Cloud) must sit in an approved folder. The only approved one is **`uploads/`** at the repo root, outside the Rojo tree: `uploads/icons/` holds your real pass and product icons (committed; check image metadata for personal data first), and `uploads/tmp/` holds throwaway files such as `blank.png`, the 1 × 1 placeholder that makes a create request multipart (git-ignored). Never approve the whole repo.
    - Studio: the experience is **"Crystal Grove DEV"** (separate dev universe, Studio API access on). In this Studio version, Output is under **Window → Output**.
 3. **Git:** branch from the previous batch's branch as `batch-N-short-name`. Commit only when the user asks. Before committing, scan for personal data (email, name, Roblox user ID or username, `C:\Users\…` paths, keys and tokens).
 4. **Workflow rules from the user:** no code until the batch plan is approved. A plan's `Status:` line says whether it is approved; if a finding changes an approved plan, re-confirm with the user before coding. End each step with one focused question. Results go in the record (Findings, Progress, Outcome); report only verified checks as passed.

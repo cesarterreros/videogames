@@ -79,6 +79,10 @@ return {
 			{ kind = "enum", values = { "Dark", "Normal", "Bright" } },
 		},
 	},
+	-- Batch 5: the session's one popup offer ({ kind = "StarterPack" | "DoubleCoins" }), and the player's policy
+	-- flags the client needs ({ paidRandomItemsRestricted = bool }), both sent by the server.
+	Offer = { Kind = "Event", Direction = "ToClient" },
+	PolicyInfo = { Kind = "Event", Direction = "ToClient" },
 	RequestInstantGrow = {
 		Kind = "Function",
 		Direction = "ToServer",

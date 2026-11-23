@@ -197,6 +197,22 @@ return function(test)
 		expect(Economy.surpriseSeedId(SEEDS, 10)):toBe("Voidheart")
 	end)
 
+	test("coinPouchAmount: tier 1 pays Quartz value times the pouch multiplier", function()
+		expect(Economy.coinPouchAmount(SEEDS, 1, 5)):toBe(75)
+		expect(Economy.coinPouchAmount(SEEDS, 1, 30)):toBe(450)
+		expect(Economy.coinPouchAmount(SEEDS, 1, 100)):toBe(1500)
+	end)
+
+	test("coinPouchAmount: tier 10 pays the Voidheart value times the pouch multiplier", function()
+		expect(Economy.coinPouchAmount(SEEDS, 10, 5)):toBe(27500000)
+		expect(Economy.coinPouchAmount(SEEDS, 10, 100)):toBe(550000000)
+	end)
+
+	test("coinPouchAmount: equals goalReward for the same tier and multiplier", function()
+		expect(Economy.coinPouchAmount(SEEDS, 3, 30)):toBe(7200)
+		expect(Economy.coinPouchAmount(SEEDS, 3, 30)):toBe(Economy.goalReward(SEEDS, 3, 30))
+	end)
+
 	test("Economy module contains no require call", function()
 		local source = fs.readFile("src/shared/Logic/Economy.luau")
 		expect(string.find(source, "require%s*[%(\"']")):toBeNil()
