@@ -1,6 +1,6 @@
 # Specification: Batch 5, monetization (passes, developer products, receipts, rewarded ads, offers, store UI)
 
-Status: approved 2026-11-18. **Done 2026-11-22:** tasks 0–13 complete; see **Outcome** at the end (findings T1–T5 go to batch 6). Committed as `57dec18` (tasks 0–12) and `4b26e8a` (task 13) on `batch-5-monetization`; pull request into `batch-1-setup`.
+Status: approved 2026-11-18. **Done 2026-11-22:** tasks 0–13 complete; see **Outcome** at the end (findings T1–T5 go to batch 6). Committed as `57dec18` (tasks 0–12) and `4b26e8a` (task 13) on `batch-5-monetization`, with this status as `22d05b5`; pushed, and pull request #5 into `batch-1-setup` merged on 2026-11-22.
 
 ## Context
 
