@@ -1,6 +1,6 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18. Not started; implemented in its own session.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: task 0 done; see **Progress**.
 
 ## Context
 
@@ -141,7 +141,8 @@ To check in official docs in task 1, recording the URL and date:
 | 0 | Branch and save the record status | Orchestrator | — | — |
 | 1 | **Proof:** check the "Outside facts" items; read the batch 2 performance findings and set the `Graphics` defaults from them | Orchestrator | Judgment | 0 |
 | 2 | Polish: Graphics config, coin fly, shake, glow ring | DeepSeek Flash (2 jobs: Effects + Hud; Renderer + Graphics) | Visual code | 1 |
-| 3 | Lighting and cave decoration in MapService | DeepSeek Flash | Geometry code | 1 |
+| 2b | **Batch 5 follow-ups** (changes A–D) and small open items: offer wait (A), "📺 Free Luck" (B), Auto ON/OFF + toast (C), Finish now hidden at ≤ 10 s (D), Daily/Goals dots during the tutorial, the Odds row's capped total, Daily's ad button refresh on open | Orchestrator (A) + Haiku (the rest) | A is guardrail code; the rest is small and fully specified | 1 |
+| 3 | Lighting (in `Config/Lighting`, change F) and cave decoration in MapService | DeepSeek Flash | Geometry code | 1 |
 | 4 | Fuzz script; a per-remote review table; hardening fixes | Orchestrator (the fuzz script can go to DeepSeek Flash) | Security review stays with the orchestrator | 1 |
 | 5 | `AdminService` | Orchestrator | Changes data; permission checks | 1 |
 | 6 | Analytics audit and fixes | Orchestrator | Cross-file judgment | 2–5 |
@@ -187,3 +188,46 @@ Escalation: as in earlier batches. **If the playtest finds a blocker**, fix it i
 1. **The admin command is disabled in the live experience entirely.** Rejected: owner-only admin in live, which is useful for support but is a risk if the check is ever wrong.
 2. **The fuzz script lives outside the Rojo project** (`roblox/dev/`), so it can never ship. Rejected: an in-game Studio-only toggle, which is easier to run but is code that ships.
 3. **You flip the game to Public yourself,** after the checklist is all ✅. Rejected: going public as part of the batch.
+
+## Progress (2026-11-24)
+
+- **Task 0 done:** branch `batch-6-polish-launch` created from `batch-5-monetization` (`22d05b5`; same tree as `batch-1-setup` after PR #5, merge `5ac6d47`). The batch 5 record's status line (PR #5 merged) is committed here. Starting state: `lune run tests` **239 passed, 0 failed**. The Rojo server from 2026-11-21 still listens on port 34872; a script's `#Source` is compared with its file size before a Studio check is trusted.
+
+### Plan changes A–J (confirmed by you on 2026-11-24)
+
+From batch 5's task 13 findings (T1–T5) and the earlier records' open items. This plan was approved before those findings.
+
+| | Source | Change | Task |
+|---|---|---|---|
+| A | T1 | **The session's offer waits for a clear screen with no time limit:** shown once nothing (no panel, no result card, tutorial done) has been on screen for **3 s**; dropped only if the player leaves. Still one per session, never during the tutorial or a result. No new remote: `OfferShown` stays logged when the server sends the card, so the Starter Pack take rate slightly overcounts only for players who leave before the screen clears. Rejected: starting the 30 s after Daily closes (any other panel can still drop the offer). | 2b |
+| B | T2 | The Luck slot's ad button reads **"📺 Free Luck"** (`Ad.FreeLuck`); checked to fit the 60 px button in the Device Simulator. | 2b |
+| C | T3 | The Auto button reads **"Auto ON" / "Auto OFF"**, with a toast on each change. | 2b |
+| D | T4 | **"Finish now" and "📺 Finish free" are hidden at 10 s or less left** (client only; the server's token fallback is unchanged). | 2b |
+| E | T5 | `OfferService.notePurchased` logs funnel step 2 first if it hasn't been logged, so the steps arrive in order. | 6 |
+| F | Cave-brightness record | **Lighting values live in `Config/Lighting.luau`:** Atmosphere, ColorCorrection and Bloom as one shared effects table, ambient and `ClockTime` tuned in the 3 presets; `MapService` applies them and keeps the surface colours and decoration. All 3 brightness levels are re-checked. | 3 |
+| G | Batch 2 proof | **`Graphics` defaults are full quality** (the phone proof gave 57–60 FPS with 78 crystals, no fallback needed); automatic lowering at a low graphics setting stays. Stress FPS on the phone is measured again after the polish. | 1, 2, 10 |
+| H | Decision 1 | **The admin command uses an allowlist:** Studio, or `game.GameId == GameConfig.DevUniverseId` and the caller is the owner. Stricter than "not the live `GameId`", and it works before a live ID exists. | 5 |
+| I | Batch 5 task 2 | **The live passes and products are created by the orchestrator through Open Cloud** (as for DEV), not by hand. Needs the live universe ID and the `game-pass:write` / `developer-product:write` permissions on again. | 9 |
+| J | Batch 5 "Not included" | **The pass and product icons were never made** (`uploads/icons/` is empty). Decided in task 8: you make them, or launch with the defaults. | 8 |
+
+### Open items from earlier batches
+
+**Closed in this batch (planned):**
+
+| Item | From | Where |
+|---|---|---|
+| "READY!" label and tutorial bubble behind the HUD's top row | Batch 4 | Task 2 (renderer job) |
+| Daily and Goals dots visible on locked buttons during the tutorial | Batch 4 | 2b |
+| Tutorial on a real phone | Batch 4 | 10 |
+| Odds row "⚡ ×2 Luck ×2" while the odds use the ×3 cap → show the capped total | Batch 5 | 2b |
+| Daily's ad button up to 1 s late → refresh when the panel opens | Batch 5 | 2b |
+| Ad refusal during the tutorial | Batch 5 | 5 (`/cg tutorial reset`, Studio test ads) |
+| Creator Dashboard sale of the real purchase | Batch 5 | 6 |
+| A real purchase that finishes a crystal (not the token fallback) | Batch 5 | 10 (live 9 R$ test, crystal with ≥ 1 min left) |
+| `BindToClose` flush; saving through a server shutdown | Batch 3 | 10 |
+| `Toast.MaxLevel` | Batch 3 | 5 (via `/cg coins`) |
+| Friend bonus above 0 | Batch 3 | 10, if two playtesters are friends |
+| "+N" label seen on screen | Batch 2 | 2 (by eye, with the coin fly) |
+| `StudsOffsetWorldSpace` axes in the official docs | Batch 2 | 1 |
+
+**Carried over:** a restricted player (no test account); a 15-second receipt save timeout; the Crystal Surge in play; a real Molten or Prismatic announcement; the Codex completion bonus in play. **Closed as by design:** "1.2K" hiding small coin changes (`Format.compact`; the coin fly's tick-up shows the change).
