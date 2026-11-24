@@ -292,28 +292,43 @@ function UIController:Start()
 		end
 	end)
 
-	-- Batch 5, change N: the session's one offer waits for a clear screen (no result card, no panel open, the
-	-- tutorial done), for up to OFFER_WAIT_SECONDS; if the screen never clears, it is dropped for this session.
-	local OFFER_WAIT_SECONDS = 30
+	-- The session's one offer waits for a clear screen: the tutorial done, no panel open, no result card
+	-- (batch 5 change N). Batch 6 change A: there is no time limit any more, so a panel that opens by itself
+	-- (Daily) can't drop the offer; the screen must stay clear for OFFER_CLEAR_SECONDS in a row, so the card
+	-- never replaces a panel the instant it closes. Only one wait runs at a time; a newer card replaces it.
+	local OFFER_CLEAR_SECONDS = 3
+	local OFFER_POLL_SECONDS = 0.5
+	local offerWaitToken = 0
+	local function screenIsClear(): boolean
+		local snapshot = StateController:Get()
+		local tutorialDone = typeof(snapshot) == "table"
+			and typeof(snapshot.Tutorial) == "table"
+			and snapshot.Tutorial.Done == true
+		local result: any = screens.Result
+		local resultShowing = result ~= nil and result.IsOpen ~= nil and result.IsOpen() == true
+		return tutorialDone and openPanel == nil and not resultShowing
+	end
 	local offer = remotes:WaitForChild("Offer") :: RemoteEvent
 	offer.OnClientEvent:Connect(function(payload: any)
 		if typeof(payload) ~= "table" then
 			return
 		end
+		offerWaitToken += 1
+		local token = offerWaitToken
 		task.spawn(function()
-			local deadline = os.clock() + OFFER_WAIT_SECONDS
-			while os.clock() < deadline do
-				local snapshot = StateController:Get()
-				local tutorialDone = typeof(snapshot) == "table"
-					and typeof(snapshot.Tutorial) == "table"
-					and snapshot.Tutorial.Done == true
-				local result: any = screens.Result
-				local resultShowing = result ~= nil and result.IsOpen ~= nil and result.IsOpen() == true
-				if tutorialDone and openPanel == nil and not resultShowing then
-					UIController:Open("OfferPopup", payload)
-					return
+			local clearSince: number? = nil
+			while token == offerWaitToken do
+				if screenIsClear() then
+					local since = clearSince or os.clock()
+					clearSince = since
+					if os.clock() - since >= OFFER_CLEAR_SECONDS then
+						UIController:Open("OfferPopup", payload)
+						return
+					end
+				else
+					clearSince = nil
 				end
-				task.wait(0.5)
+				task.wait(OFFER_POLL_SECONDS)
 			end
 		end)
 	end)

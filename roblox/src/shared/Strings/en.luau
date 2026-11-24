@@ -115,6 +115,8 @@ return {
 	["Odds.Note"] = "Base odds are the same for every player.",
 	["Odds.LuckBoost"] = "Luck ×{mult}",
 	["Odds.BoostedNote"] = "Boost active: these are your odds right now.",
+	["Odds.BothBoost"] = "⚡+Luck ×{mult}",
+	["Odds.BothBoostMax"] = "⚡+Luck ×{mult} (max)",
 	-- Tap on a growing crystal
 	["Bubble.Growing"] = "Ready in {time}",
 	-- Tutorial
@@ -135,6 +137,8 @@ return {
 	["Hud.LuckFree"] = "Free",
 	["Hud.NextFreeSurge"] = "Next free Surge in {time}",
 	["Hud.Auto"] = "Auto",
+	["Hud.AutoOn"] = "Auto ON",
+	["Hud.AutoOff"] = "Auto OFF",
 	["Price.Robux"] = "R$ {price}",
 	["Price.Loading"] = "…",
 	["Store.Title"] = "Store",
@@ -186,6 +190,8 @@ return {
 	["Toast.Purchased"] = "{item} added!",
 	["Toast.LuckBoost"] = "Luck Boost: {time} left",
 	["Toast.Unavailable"] = "Sorry, this item is unavailable in your region",
+	["Toast.AutoOn"] = "Auto Shatter on: ready crystals shatter and replant while you play",
+	["Toast.AutoOff"] = "Auto Shatter off",
 	-- Hub stalls
 	["Stall.SeedShop"] = "Seed Shop",
 	["Stall.Upgrades"] = "Upgrades",

@@ -1,6 +1,7 @@
 --!strict
 -- Procedural crystal model builder (plain module, not a controller: no Init/Start).
--- Every prism is exactly two parts: a Neon core plus a Glass shell, so a full crystal costs 2 * count parts.
+-- Every prism is a Neon core plus a Glass shell (a core alone when the graphics profile turns shells off),
+-- so a full crystal costs 2 * count parts.
 -- The result is deterministic per (shape, tier): all randomness comes from Random.new(shape) in a fixed order.
 -- The returned Model is unparented, named "Crystal", built around the origin with its pivot at the base centre;
 -- the caller PivotTo's it onto a pedestal and ScaleTo's it.
@@ -61,9 +62,17 @@ local function newPart(
 	return part
 end
 
--- Add one prism (core + shell) to the model. `baseFrame` maps the prism's base point to the world and
--- orients its long axis; the parts are lifted by half their height so the bottom end sits at that point.
-local function addPrism(model: Model, index: number, baseFrame: CFrame, height: number, width: number, color: Color3)
+-- Add one prism (core, plus a shell when `withShell`) to the model. `baseFrame` maps the prism's base point
+-- to the world and orients its long axis; the parts are lifted by half their height so the bottom end sits there.
+local function addPrism(
+	model: Model,
+	index: number,
+	baseFrame: CFrame,
+	height: number,
+	width: number,
+	color: Color3,
+	withShell: boolean
+)
 	local partFrame = baseFrame * CFrame.new(0, height / 2, 0)
 
 	local core = newPart(
@@ -75,6 +84,10 @@ local function addPrism(model: Model, index: number, baseFrame: CFrame, height: 
 		partFrame * CFrame.Angles(0, CORE_SPIN, 0)
 	)
 	core.Parent = model
+
+	if not withShell then
+		return
+	end
 
 	local shell = newPart(
 		"Shell_" .. index,
@@ -88,9 +101,12 @@ local function addPrism(model: Model, index: number, baseFrame: CFrame, height: 
 end
 
 -- Build the crystal for a given seed colour hex, shape seed and tier. Same (shape, tier) always yields
--- the same model. The model is unparented and pivoted at its base centre, all geometry at y >= 0 (base ~y = 0).
-function CrystalBuilder.build(seedColorHex: string, shape: number, tier: number): Model
+-- the same model. `withShell == false` skips the Glass shell (the low-graphics fallback) and builds cores
+-- only; the default builds the shell, exactly as before. The model is unparented and pivoted at its base
+-- centre, all geometry at y >= 0 (base ~y = 0).
+function CrystalBuilder.build(seedColorHex: string, shape: number, tier: number, withShell: boolean?): Model
 	local color = parseColor(seedColorHex)
+	local shell = withShell ~= false
 
 	-- Defensive integer/range guards; the caller's contract already promises sane values.
 	local safeTier = math.clamp(math.floor(tier), MIN_TIER, MAX_TIER)
@@ -112,7 +128,7 @@ function CrystalBuilder.build(seedColorHex: string, shape: number, tier: number)
 	model.Name = "Crystal"
 
 	-- Prism 1 is the main one: upright at the centre, its base at the origin.
-	addPrism(model, 1, CFrame.new(0, 0, 0), height, width, color)
+	addPrism(model, 1, CFrame.new(0, 0, 0), height, width, color, shell)
 
 	for i = 2, count do
 		local prismHeight = height * r:NextNumber(0.4, 0.8)
@@ -131,7 +147,7 @@ function CrystalBuilder.build(seedColorHex: string, shape: number, tier: number)
 			* CFrame.Angles(-math.rad(tilt), 0, 0)
 			* CFrame.Angles(0, spin, 0)
 
-		addPrism(model, i, baseFrame, prismHeight, prismWidth, color)
+		addPrism(model, i, baseFrame, prismHeight, prismWidth, color, shell)
 	end
 
 	-- Pivot at the base centre; no PrimaryPart, the caller scales and repositions the whole model.

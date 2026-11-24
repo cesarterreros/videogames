@@ -295,8 +295,8 @@ function Daily.new(ctx: any): Screen
 	local screen: Screen = {
 		Root = root,
 		Open = function(_args: any?)
-			refresh(ctx.State:Get())
 			root.Visible = true
+			refresh(ctx.State:Get())
 		end,
 		Close = function()
 			root.Visible = false

@@ -13,6 +13,7 @@ local ROW_PAD = 8 -- gap between two buttons of the row
 local BUTTON_W = 136
 local BUTTON_H = 56
 local BUTTON_TEXT = 16
+local FINISH_MIN_SECONDS = 10 -- batch 6: no paid or ad finish in the last seconds (the crystal could ripen during the prompt)
 
 -- How often the countdown is repainted while the panel is open, in seconds.
 local TICK_SECONDS = 0.5
@@ -213,6 +214,7 @@ function CrystalMenu.new(ctx: any): Screen
 			closePanel()
 			return
 		end
+		local finishAllowed = secondsLeft > FINISH_MIN_SECONDS
 
 		-- The title is the seed's name; the key depends on the seed, so it is built in a local first.
 		local seedKey = "Seed." .. tostring(crystal.SeedId)
@@ -231,13 +233,18 @@ function CrystalMenu.new(ctx: any): Screen
 		-- Which product tier this wait maps to; the client only ever displays its live price.
 		local key = ctx.Purchase:InstantGrowKey(secondsLeft)
 
-		finishNow.Visible = not ctx.Purchase:IsHidden("Product", key)
+		finishNow.Visible = finishAllowed and not ctx.Purchase:IsHidden("Product", key)
 		finishNow.Text = Strings.get("CrystalMenu.FinishNow") .. "  " .. ctx.Purchase:PriceText("Product", key)
 
 		-- The rewarded video shows only for a short crystal, only while one is available, and only while
 		-- the player's daily caps have room (a cooldown still shows it: the server answers with its own toast).
 		local finishFreeVisible = false
-		if key == "InstantGrowS" and adAvailable and not ctx.Purchase:IsHidden("Product", "InstantGrowS") then
+		if
+			key == "InstantGrowS"
+			and adAvailable
+			and finishAllowed
+			and not ctx.Purchase:IsHidden("Product", "InstantGrowS")
+		then
 			local adSettings = ctx.Config.Monetization
 			local ads = if isTable(adSettings) then adSettings.Ads else nil
 			if isTable(ads) then

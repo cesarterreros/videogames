@@ -1,7 +1,10 @@
 --!strict
--- Crystal visuals: mutation effects, the countdown label and the growth scale curve.
+-- Crystal visuals: mutation effects, the countdown label, the ripe crystal's glow ring and the growth scale curve.
 -- The builder makes the model; this module only decorates it. Nothing here yields or talks to the server.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Graphics = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Graphics"))
 local CrystalBuilder = require(script.Parent.CrystalBuilder)
 
 local CrystalVisuals = {}
@@ -13,8 +16,9 @@ local EMBER_HOT = Color3.fromRGB(255, 170, 60)
 local EMBER_COLD = Color3.fromRGB(255, 60, 20)
 local READY_COLOR = Color3.fromRGB(255, 225, 90)
 
--- Crystals at or above this tier glow lightly even without a mutation.
-local GLOW_TIER = 7
+-- Full-quality emitter rates; the graphics profile's ParticleRate scales both.
+local SPARKLE_RATE = 4
+local EMBER_RATE = 6
 local LIGHT_RANGE = 10
 
 -- Removes effects this module added to a part, so a re-apply never stacks them.
@@ -36,11 +40,12 @@ local function makeLight(part: BasePart, color: Color3, brightness: number): Poi
 	return light
 end
 
--- Creates the sparkle emitter; the texture stays at the engine default.
-local function makeSparkles(part: BasePart, color: Color3): ParticleEmitter
+-- Creates the sparkle emitter; the texture stays at the engine default. `rate` is already scaled
+-- by the graphics profile's ParticleRate.
+local function makeSparkles(part: BasePart, color: Color3, rate: number): ParticleEmitter
 	local sparkles = Instance.new("ParticleEmitter")
 	sparkles.Name = "Sparkles"
-	sparkles.Rate = 4
+	sparkles.Rate = rate
 	sparkles.Lifetime = NumberRange.new(0.8, 1.4)
 	sparkles.Speed = NumberRange.new(0.5, 1.5)
 	sparkles.SpreadAngle = Vector2.new(180, 180)
@@ -51,11 +56,11 @@ local function makeSparkles(part: BasePart, color: Color3): ParticleEmitter
 	return sparkles
 end
 
--- Creates the rising ember emitter used by the Molten mutation.
-local function makeEmbers(part: BasePart): ParticleEmitter
+-- Creates the rising ember emitter used by the Molten mutation (rate already profile-scaled).
+local function makeEmbers(part: BasePart, rate: number): ParticleEmitter
 	local embers = Instance.new("ParticleEmitter")
 	embers.Name = "Embers"
-	embers.Rate = 6
+	embers.Rate = rate
 	embers.Lifetime = NumberRange.new(1, 1.8)
 	embers.Speed = NumberRange.new(1, 2.5)
 	embers.Acceleration = Vector3.new(0, 2, 0)
@@ -78,12 +83,23 @@ local function tint(model: Model, color: Color3, amount: number)
 	end
 end
 
+-- A mutated crystal's own light, or nil when the graphics profile drops mutation lights.
+local function mutationLight(core: BasePart, color: Color3, profile: Graphics.Profile): PointLight?
+	if not profile.MutationLights then
+		return nil
+	end
+	return makeLight(core, color, 1.6)
+end
+
 -- Applies a mutation's light and particles; returns them so the caller can animate or remove them.
+-- `profile` is a Shared.Config.Graphics profile: it decides which crystals earn a light and how many
+-- particles they emit, so a weak device keeps the look but loses the expensive bits.
 function CrystalVisuals.applyMutation(
 	model: Model,
 	mutation: string,
 	tier: number,
-	color: Color3
+	color: Color3,
+	profile: Graphics.Profile
 ): (PointLight?, ParticleEmitter?)
 	local core = CrystalBuilder.cores(model)[1]
 	if core == nil then
@@ -91,14 +107,17 @@ function CrystalVisuals.applyMutation(
 	end
 	clearEffects(core)
 
+	local sparkleRate = SPARKLE_RATE * profile.ParticleRate
+	local emberRate = EMBER_RATE * profile.ParticleRate
+
 	if mutation == "Glowing" then
-		return makeLight(core, color, 1.6), makeSparkles(core, color)
+		return mutationLight(core, color, profile), makeSparkles(core, color, sparkleRate)
 	elseif mutation == "Molten" then
 		tint(model, MOLTEN_TINT, 0.55)
-		return makeLight(core, MOLTEN_LIGHT, 1.6), makeEmbers(core)
+		return mutationLight(core, MOLTEN_LIGHT, profile), makeEmbers(core, emberRate)
 	elseif mutation == "Prismatic" then
-		return makeLight(core, color, 1.6), makeSparkles(core, WHITE)
-	elseif tier >= GLOW_TIER then
+		return mutationLight(core, color, profile), makeSparkles(core, WHITE, sparkleRate)
+	elseif tier >= profile.LightsMinTier then
 		return makeLight(core, color, 1.2), nil
 	end
 
@@ -154,6 +173,34 @@ function CrystalVisuals.placeLabel(gui: BillboardGui, pedestal: BasePart, height
 	-- StudsOffsetWorldSpace is measured along the adornee's own axes, and pedestals are
 	-- cylinders rolled 90° (their local Y points sideways), so convert world-up first.
 	gui.StudsOffsetWorldSpace = pedestal.CFrame:VectorToObjectSpace(Vector3.new(0, height, 0))
+end
+
+-- Creates the soft glow ring round a ripe crystal's base. It hangs off the pedestal, never the crystal
+-- model (the model gets ScaleTo, which would stretch the ring with it).
+function CrystalVisuals.makeReadyRing(pedestal: BasePart, color: Color3): Part
+	local ring = Instance.new("Part")
+	ring.Name = "ReadyRing"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Material = Enum.Material.Neon
+	ring.Color = color:Lerp(WHITE, 0.4)
+	ring.Transparency = 0.5
+	-- Pedestals are cylinders rolled 90°, so their local X axis is world up and the disc lies in their
+	-- YZ plane. Lift it to just under the top face so only the rim shows round the edge, and size it a
+	-- little wider than the pedestal.
+	ring.Size = Vector3.new(0.2, pedestal.Size.Y + 1.2, pedestal.Size.Z + 1.2)
+	ring.CFrame = pedestal.CFrame * CFrame.new(pedestal.Size.X / 2 - 0.12, 0, 0)
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Parent = pedestal
+	return ring
+end
+
+-- Breathes the ready ring; the renderer calls this from its per-frame heartbeat.
+function CrystalVisuals.pulseRing(ring: BasePart, clock: number)
+	ring.Transparency = 0.35 + 0.3 * (0.5 + 0.5 * math.sin(clock * 3))
 end
 
 -- Sets a label's text (only when it changed) and its ready/not-ready colour.

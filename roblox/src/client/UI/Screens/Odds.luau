@@ -217,7 +217,14 @@ function Odds.new(ctx: any): Screen
 		if luckActive and luckMult > 1 then
 			table.insert(parts, Strings.get("Odds.LuckBoost", { mult = luckMult }))
 		end
-		local boostText = table.concat(parts, " ")
+		local boostText: string
+		if #parts == 2 then
+			-- batch 6: both boosts live, one combined label; "(max)" when the cap cut the product short.
+			local bothKey = if mult < surgeMult * luckMult then "Odds.BothBoostMax" else "Odds.BothBoost"
+			boostText = Strings.get(bothKey, { mult = mult })
+		else
+			boostText = table.concat(parts, " ")
+		end
 
 		-- "None" is whatever is left once the (surge-scaled) mutation chances are taken out.
 		local spent = 0

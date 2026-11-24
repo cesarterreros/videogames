@@ -18,6 +18,11 @@ local SHATTER_W = 180
 local SHATTER_H = 52
 local DOT_SIZE = 14
 local COIN_TWEEN_SECONDS = 0.4 -- time the coin counter takes to tick up to a bigger value
+local COIN_RELEASE_SECONDS = 0.15 -- short tick for one flying coin landing
+local COIN_HOLD_SECONDS = 1.5 -- a hold releases itself when no coin arrives for this long
+local COIN_HOLD_SAFETY_SECONDS = 1.6 -- the delayed check that guarantees the counter never stays stuck
+local COIN_POP_SCALE = 1.12 -- the coin pill's small "pop" when a coin lands
+local COIN_POP_SECONDS = 0.06 -- each half of that pop
 local MUSIC_TAP_HOLD = 1.5 -- after a tap, the icon and label ignore the snapshot for this long
 local LOOP_SECONDS = 1
 local FALLBACK_SURGE_MINUTES = 5 -- only reached if Config.Economy is missing SurgeMinutes
@@ -29,6 +34,10 @@ export type Screen = {
 	Buttons: { [string]: TextButton },
 	BrightnessSlot: Frame,
 	MonetizationSlot: Frame,
+	-- The coin pill, so the EffectsController can fly coins into it, plus the two halves of that flight.
+	CoinTarget: Frame,
+	HoldCoins: (amount: number) -> (),
+	ReleaseCoins: (amount: number) -> (),
 	Open: (args: any?) -> (),
 	Close: () -> (),
 	Update: (snapshot: any) -> (),
@@ -224,18 +233,99 @@ function Hud.new(ctx: any): Screen
 
 	local coinTween: Tween? = nil
 
-	-- An increase ticks up over COIN_TWEEN_SECONDS; a decrease (or a repeated value) shows at once.
-	local function setCoins(value: number)
+	-- The latest snapshot's coin total.
+	local serverCoins = 0
+	-- Coins whose icons are still flying: they are held back so the counter can tick up as they arrive.
+	local held = 0
+	-- What the counter showed when the first icon left; the target never drops below it during a hold.
+	local heldFloor: number? = nil
+	-- After this clock time a hold releases itself, so a lost icon can never freeze the counter.
+	local heldUntil = 0
+	-- The pill's pop scale, created the first time a coin lands.
+	local coinPop: UIScale? = nil
+
+	-- The value the counter should be heading for: the snapshot minus whatever is still in flight.
+	local function coinTarget(): number
+		if held > 0 then
+			return math.max(heldFloor or 0, serverCoins - held)
+		end
+		return serverCoins
+	end
+
+	-- An increase ticks up over `seconds`; a decrease (or a repeated value) shows at once.
+	local function tweenTo(value: number, seconds: number)
 		if coinTween then
 			coinTween:Cancel()
 			coinTween = nil
 		end
 		if value > coinValue.Value then
-			coinTween = TweenService:Create(coinValue, TweenInfo.new(COIN_TWEEN_SECONDS), { Value = value })
+			coinTween = TweenService:Create(coinValue, TweenInfo.new(seconds), { Value = value })
 			coinTween:Play()
 		else
 			coinValue.Value = value
 		end
+	end
+
+	local function setCoins(value: number)
+		serverCoins = value
+		tweenTo(coinTarget(), COIN_TWEEN_SECONDS)
+	end
+
+	-- The pill's UIScale, created once and reused by every pop.
+	local function coinPopScale(): UIScale
+		local existing = coinPop
+		if existing ~= nil then
+			return existing
+		end
+		local created = Instance.new("UIScale")
+		created.Name = "CoinPop"
+		created.Parent = coinPill
+		coinPop = created
+		return created
+	end
+
+	-- Small pop on the pill (1 -> 1.12 -> 1) as a flying coin lands.
+	local function popCoins()
+		local scale = coinPopScale()
+		scale.Scale = 1
+		local up = TweenService:Create(scale, TweenInfo.new(COIN_POP_SECONDS), { Scale = COIN_POP_SCALE })
+		up.Completed:Once(function()
+			TweenService:Create(scale, TweenInfo.new(COIN_POP_SECONDS), { Scale = 1 }):Play()
+		end)
+		up:Play()
+	end
+
+	-- Holds `amount` coins back: the counter waits for the icons that are now flying towards it.
+	local function HoldCoins(amount: number)
+		local count = math.floor(amount)
+		if count <= 0 then
+			return
+		end
+		if held == 0 then
+			heldFloor = coinValue.Value
+		end
+		held += count
+		heldUntil = os.clock() + COIN_HOLD_SECONDS
+		tweenTo(coinTarget(), COIN_TWEEN_SECONDS)
+
+		task.delay(COIN_HOLD_SAFETY_SECONDS, function()
+			-- Safety net: if no icon reported in, release everything, so the counter can never stay stuck.
+			if held > 0 and os.clock() >= heldUntil then
+				held = 0
+				heldFloor = nil
+				tweenTo(coinTarget(), COIN_TWEEN_SECONDS)
+			end
+		end)
+	end
+
+	-- Releases the share of one landed icon, ticks the counter a notch closer and pops the pill.
+	local function ReleaseCoins(amount: number)
+		held = math.max(0, held - math.floor(amount))
+		if held == 0 then
+			heldFloor = nil
+		end
+		tweenTo(coinTarget(), COIN_RELEASE_SECONDS)
+		popCoins()
 	end
 
 	local friendLabel = Components.label({
@@ -420,6 +510,8 @@ function Hud.new(ctx: any): Screen
 	local luckAdCheckAt = 0
 	local luckAdChecking = false
 	local refreshMonetization: (snapshot: any) -> ()
+	-- batch 6: the saved Auto Shatter setting as last seen, so a change can toast once.
+	local lastAutoOn: boolean? = nil
 
 	-- What a tap on the luck button does in its current mode.
 	local function onLuckClick()
@@ -494,7 +586,7 @@ function Hud.new(ctx: any): Screen
 
 	local autoButton = Components.button({
 		Name = "Auto",
-		Text = Theme.Icons.Auto .. " " .. Strings.get("Hud.Auto"),
+		Text = Theme.Icons.Auto .. "\n" .. Strings.get("Hud.AutoOff"),
 		Size = UDim2.fromOffset(80, SHATTER_H),
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(0.5, -(SHATTER_W / 2) - 8, 1, -EDGE),
@@ -605,6 +697,12 @@ function Hud.new(ctx: any): Screen
 			goalsDot.Visible = false
 			return
 		end
+		-- batch 6: no red dots until the tutorial is done.
+		if not (isTable(snapshot.Tutorial) and snapshot.Tutorial.Done == true) then
+			dailyDot.Visible = false
+			goalsDot.Visible = false
+			return
+		end
 		local today = ctx.Logic.WeekId.dateString(ctx.Now())
 		local streak = snapshot.Streak
 		dailyDot.Visible = isTable(streak) and streak.LastClaimDate ~= today
@@ -639,11 +737,20 @@ function Hud.new(ctx: any): Screen
 		autoButton.Visible = ctx.Purchase:OwnsPass("AutoShatter")
 		local settings = state.Settings
 		local autoOn = isTable(settings) and settings.AutoShatter == true
+		autoButton.Text = Theme.Icons.Auto .. "\n" .. Strings.get(if autoOn then "Hud.AutoOn" else "Hud.AutoOff")
 		local autoColor = if autoOn then COLORS.Good else COLORS.PanelLight
 		-- While the tutorial lock has the button disabled, that grey is the colour to keep.
 		if Components.isEnabled(autoButton) then
 			autoButton.BackgroundColor3 = Theme.color(autoColor)
 			autoButton:SetAttribute("NormalColor", autoColor)
+		end
+
+		-- batch 6: a real snapshot with the pass owned toasts when the saved setting changes; the first one only records it.
+		if isTable(snapshot) and autoButton.Visible then
+			if lastAutoOn ~= nil and autoOn ~= lastAutoOn then
+				ctx.UI:Toast(Strings.get(if autoOn then "Toast.AutoOn" else "Toast.AutoOff"))
+			end
+			lastAutoOn = autoOn
 		end
 
 		if ctx.Purchase:IsHidden("Product", "LuckBoost") then
@@ -694,7 +801,7 @@ function Hud.new(ctx: any): Screen
 
 		if luckAdAvailable and canAd and capsAllow then
 			luckMode = "Ad"
-			luckButton.Text = Theme.Icons.Ad .. "\n" .. Strings.get("Hud.LuckFree")
+			luckButton.Text = Theme.Icons.Ad .. "\n" .. Strings.get("Ad.FreeLuck")
 			luckButton.TextColor3 = Theme.color(COLORS.Text)
 			luckHint.Text = Strings.get("Ad.Subtitle")
 			luckHint.Visible = true
@@ -739,6 +846,9 @@ function Hud.new(ctx: any): Screen
 		Buttons = buttons,
 		BrightnessSlot = brightnessSlot,
 		MonetizationSlot = monetizationSlot,
+		CoinTarget = coinPill,
+		HoldCoins = HoldCoins,
+		ReleaseCoins = ReleaseCoins,
 		Open = function(_args: any?) end,
 		Close = function() end,
 		Update = update,

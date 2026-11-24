@@ -1,6 +1,6 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: task 0 done; see **Progress**.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–1 done; plan change K pending (before task 9); see **Progress** and **Findings**.
 
 ## Context
 
@@ -231,3 +231,88 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
 | `StudsOffsetWorldSpace` axes in the official docs | Batch 2 | 1 |
 
 **Carried over:** a restricted player (no test account); a 15-second receipt save timeout; the Crystal Surge in play; a real Molten or Prismatic announcement; the Codex completion bonus in play. **Closed as by design:** "1.2K" hiding small coin changes (`Format.compact`; the coin fly's tick-up shows the change).
+
+- **Task 1 done (2026-11-24, orchestrator):** the outside facts are checked (Findings → Task 1) and the `Graphics` defaults are set (Findings → Graphics defaults). Two findings change later steps: the Atmosphere replaces today's fog (task 3), and the release rules give **plan change K** (pending, to confirm before task 9). No code changed.
+- **Tasks 2 and 2b: code done (2026-11-24); checks by eye still open.**
+  - **Change A (orchestrator):** [UIController.luau](../../roblox/src/client/Controllers/UIController.luau): the offer waits until the screen has been clear (tutorial done, no panel, no result card) for 3 s in a row, with no time limit. One wait runs at a time; a newer card replaces it.
+  - **Task 2, job 1 (DeepSeek Flash; stopped on its token budget with every file written, so no retry):**
+    - New pure [Logic/CoinFly.luau](../../roblox/src/shared/Logic/CoinFly.luau) (`iconCount`: 6–12 icons by coin amount; `split`: whole shares that sum exactly) with `CoinFly.spec` (9 tests).
+    - [Hud.luau](../../roblox/src/client/UI/Screens/Hud.luau): `CoinTarget`, `HoldCoins`, `ReleaseCoins`. The counter holds back flying coins and ticks up as each icon lands, with a small pop. A hold releases itself after 1.6 s, so the counter can't get stuck.
+    - [EffectsController.luau](../../roblox/src/client/Controllers/EffectsController.luau): coin fly (icons from the crystal's screen point to the coin pill over 0.5 s); shake Huge 0.2 s and Colossal 0.4 s; shards tinted by mutation (Glowing lighter, Molten orange, Prismatic a rainbow); a white flash for Prismatic.
+  - **Task 2, job 2 (DeepSeek Flash; stopped on its budget with 3 hooks missing; a DeepSeek retry added them):**
+    - New [Config/Graphics.luau](../../roblox/src/shared/Config/Graphics.luau) (change G's two profiles; `profileName`, `profile`) with `Graphics.spec` (6 tests).
+    - `CrystalBuilder.build(..., withShell?)`.
+    - `CrystalVisuals.applyMutation(..., profile)`: lights and particle rates follow the profile.
+    - `CrystalVisuals.makeReadyRing` / `pulseRing`.
+    - [CrystalRenderer.luau](../../roblox/src/client/Controllers/CrystalRenderer.luau): reads `SavedQualityLevel` and restyles on change; a pulsing glow ring on ripe crystals; own-plot labels that would land in the HUD's top 130 px drop to just above the pedestal, 3 studs toward the camera, and climb back only below 160 px.
+  - **Task 2b (Haiku, accepted first time):**
+    - Hud: "📺 Free Luck" (B); Auto reads "Auto ON / OFF" and toasts on each change (C); no red dots before the tutorial is done.
+    - CrystalMenu: Finish now and 📺 Finish free hidden at 10 s or less (D).
+    - Odds: both boosts read "⚡+Luck ×3 (max)".
+    - Daily: the panel is visible before its first refresh, so the ad probe runs at once.
+    - 4 new strings.
+  - **Review:** every DeepSeek recovery journal was checked and acknowledged. The full-screen fly layer doesn't block world taps (TapController uses `gameProcessed`; the layer isn't `Active`). Tests **254 passed, 0 failed** (239 + 9 CoinFly + 6 Graphics); StyLua clean; `rojo build` succeeds.
+  - **Studio, first check (Play Solo, your DEV profile; the old Rojo server synced every changed script, byte for byte):**
+    - No errors from our code.
+    - `[Graphics] profile=Low`: Studio's own graphics level is 1–3 here, so Studio shows the Low profile.
+    - Ripe pedestals 1 and 2 had a `ReadyRing`.
+    - Shattering pedestal 1 flew 8 icons, all gone by 1.75 s; the counter went 8.3K → 8.4K.
+    - A second shatter: the first icon started at (253, 92) against the crystal's screen point (256, 94) and flew to the coin pill's centre (352, 28), in the same coordinate space.
+    - The Daily panel opened by itself (a new day), the T1 situation.
+  - **Studio, checks by eye (Play Solo, Device Simulator iPhone 7, 2026-11-24; your taps, Fast Grow forced off with `DebugPass_FastGrow` so a Quartz grows for 20 s):**
+
+    | Check | Result |
+    |---|---|
+    | Finish now shown with more than 10 s left, hidden in the last 10 s (D) | **Passed** (your check). A 📺 Finish free test ad also completed earlier in the growth: `granted InstantGrowS (ad=true)` once. |
+    | Glow ring on a ripe crystal | **Passed** (your check). |
+    | Coin fly: icons to the counter, tick-up and pop, the "+N" label, shard colour | **Passed** (your check), on 3 real shatters (+44, +54, +36). This also closes batch 2's "+N label seen on screen". |
+    | "📺 Free Luck" fits its button (B) | **Passed** (your check). A Luck test ad was granted once through ProcessReceipt. |
+    | Auto: "Auto ON / OFF" and a toast on each tap (C) | **Passed** (your check); left **off** (the HUD reads "Auto OFF"). |
+    | Own-plot label drops below the HUD near the top of the screen (batch 4 open item) | **Passed** (your check). |
+    | 0.4 s shake, white flash, rainbow shards (a fake Colossal Prismatic `ShatterResult` sent from the server command bar, display only, no coins) | **Passed** (your check). |
+    | Graphics profile follows Studio's graphics level | **Passed:** `[Graphics] profile=Low` at start, then `profile=Full` when the level changed during the session. |
+
+  - **Change A, Studio local server with 2 test players (2026-11-24, test profiles `Player_-1` / `Player_-2`, which own no pass):** both got `[Offer] shown DoubleCoins` while the Daily panel (a new day for them) was open. At 50 s or more after the send, Player1's popup was still waiting, not dropped. You closed Daily in Player1's window and the Double Coins card was showing at the next check (21:58:09 UTC, more than 70 s after the send). Player2, with Daily still open, kept waiting with no popup. **Passed: T1 is fixed.**
+
+  - **Device Simulator, Galaxy A16 (viewport 685 × 338; Play Solo, your DEV profile, Fast Grow forced off, 2026-11-24):** Finish now shown, then hidden in the last 10 s; glow ring; coin fly on a real shatter (+39); the Luck and "Auto ON / OFF" texts fit; the top-of-screen label drops below the HUD; the fake Colossal Prismatic (sent twice: the first time pedestal 1 was out of view) shook, flashed and burst in rainbow shards. **All passed** (your checks). Auto left off ("Auto OFF"). The client log shows both fake results and no errors from our code.
+
+    **Still open from tasks 2 and 2b:** the tutorial's world bubble near the HUD (its own placement code wasn't changed); the Odds row with both boosts (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
+
+## Findings
+
+### Task 1: outside facts (checked 2026-11-24)
+
+Pages read through the Studio MCP doc fetcher; each showed `last_updated: 2026-11-24`.
+
+| Fact | Official page | What it says | Effect on this plan |
+|---|---|---|---|
+| `TextChatCommand.Triggered` | [TextChatCommand](https://create.roblox.com/docs/reference/engine/classes/TextChatCommand.md) | `Triggered(originTextSource, unfilteredText)` fires **on the sending client and the server**, not on other clients. Matching is case-insensitive; with the default `StartsWith` mode the alias must be followed by a space or the end ("/cg coins 5" matches "/cg"). With `DeliverMessage = false` the message isn't sent to others and `unfilteredText` is the whole message. `AutocompleteVisible` hides the command from suggestions. | As planned: `AdminService` creates one `TextChatCommand` (`PrimaryAlias = "/cg"`, `AutocompleteVisible = false`) under `TextChatService` on the server **only when the gate passes**, handles `Triggered` on the server, and reads the caller from `originTextSource.UserId`. Checked in Studio in task 5. |
+| `Atmosphere` | [Atmosphere](https://create.roblox.com/docs/reference/engine/classes/Atmosphere.md) | "**Fog properties are hidden when Lighting contains an Atmosphere object.**" `Density` sets how much in-game objects are obscured. | **Today's `FogEnd = 600` / `FogColor` stop working** once the Atmosphere is added. The Atmosphere replaces the fog: change F's effects table holds its values, and `MapService` stops setting fog. |
+| `BloomEffect` | [BloomEffect](https://create.roblox.com/docs/reference/engine/classes/BloomEffect.md) | `Intensity`, `Size` (pixels), `Threshold`: "If set to 1, only pure white colors will bloom. If set to 0, all colors will bloom." Renders differently by quality level. | Today's bloom is 0.8 / 24 / **0.85**; the plan says threshold **1.1**. Task 3 starts from 1.1 and keeps it only if Neon crystals still glow by eye; otherwise 0.85 stays (recorded either way). |
+| `ColorCorrectionEffect` | [ColorCorrectionEffect](https://create.roblox.com/docs/reference/engine/classes/ColorCorrectionEffect.md) | `Saturation` above 0 is more vivid, −1 is grey; `Contrast` above 0 is more contrast. | As planned (+0.1, +0.05). |
+| `BillboardGui.StudsOffsetWorldSpace` (batch 2 open item) | [BillboardGui](https://create.roblox.com/docs/reference/engine/classes/BillboardGui.md) | "offset from its Adornee in studs, relative to the **global axes**." | **The docs disagree with batch 2's measurement** (the label moved along the rolled pedestal's own Y axis). The code follows the measurement, which works on screen; no change. Open item closed as "checked; the docs differ from observed behaviour". |
+| Graphics quality | [UserGameSettings](https://create.roblox.com/docs/reference/engine/classes/UserGameSettings.md), [SavedQualitySetting](https://create.roblox.com/docs/reference/engine/enums/SavedQualitySetting.md) | `SavedQualityLevel` is `Automatic` (0, "determined automatically based on device performance") or `QualityLevel1`–`10`. | See **Graphics defaults** below. |
+| Thumbnails | [Thumbnails](https://create.roblox.com/docs/production/publishing/thumbnails.md) | 16:9, ideally 1920 × 1080. Creator Dashboard → game → **Configurations → Places** → a place → **Thumbnails** → **Home Page** tab → Edit active thumbnails → 2–5 **Active**, each under 3 MB → Save → **Start**. Personalization starts only with 2 or more active. Nothing essential at the bottom. | As planned. |
+| Icon | [Icons](https://create.roblox.com/docs/production/publishing/experience-icons.md) | Square, 512 × 512; check it at 150 × 150. | As planned. |
+| Server size | [Places (Open Cloud)](https://create.roblox.com/docs/cloud/reference/features/places.md) | `PATCH /cloud/v2/universes/{u}/places/{p}` with `updateMask=serverSize`: "the maximum number of allowed users in a single server". | Task 9 can set 6 through Open Cloud (or you in the Dashboard). The DEV place is already 6 (batch 3: `OrderedList = 17 = 5 + 2 × 6`). |
+| Managed Pricing | [Managed pricing](https://create.roblox.com/docs/production/monetization/managed-pricing.md), [Regional pricing](https://create.roblox.com/docs/production/monetization/regional-pricing.md) | "**New games and newly created items are enrolled in Managed pricing by default.** Item-level opt-out is available at any time." It combines price tests and regional pricing (30–100 % of the default price). In-game prices must come from `GetProductInfoAsync`. | The monetization spec says **week 1 at default prices**, so in task 9 the 15 live items are **opted out** (Monetization → Managed Pricing) until week 2. The UI already reads `GetProductInfoAsync`, so regional prices will show correctly later. |
+| Rewarded video | [Rewarded video ads](https://create.roblox.com/docs/production/promotion/rewarded-video-ads.md) | Game: public and unrestricted, with a **reviewed and approved** questionnaire and ≥ 2,000 unique visitors per month. Publisher: 13+, **2FA and ID verification**. Rewards: developer products, not random. Eligibility is under **Monetization → Ads → Eligibility**. | No code change. Your account steps (2FA, ID) are the same as for the all-ages release below. |
+| Analytics delay | [Custom events](https://create.roblox.com/docs/production/analytics/custom-events.md), [Funnel events](https://create.roblox.com/docs/production/analytics/funnel-events.md) | "Events can only be sent from the server and **in published games**. Events can't be sent from the client or **Studio**." Custom events are aggregated daily: "it may take up to 24 hours". | **Task 6's dashboard evidence needs a session on the published DEV place**, then up to a day's wait. Studio only shows the `[Analytics]` prints. |
+| Questionnaire and release | [Content ratings](https://create.roblox.com/docs/production/promotion/content-ratings.md), [Publish games](https://create.roblox.com/docs/production/publishing/publish-games-and-places.md), [Kids and Select](https://create.roblox.com/docs/production/publishing/kids-and-select.md) | **Renamed "Content Ratings Questionnaire"**: Creator Dashboard → game → **Publish settings → Content ratings** → Get a rating. The name, description and genre must be saved first; it takes 15–60 min, and the ratings can take a few days if you aren't age-verified as 18+. **Releasing is now done from Studio's File → Publish window.** Answering "No" to the first question gives "Content May Vary" and **ages 16+ only**. **All ages (Kids 5–8, Select 9–15)** also needs ID verification (government ID if 18+), 2FA, the **full** questionnaire with a Minimal, Mild or Moderate rating, a **1,000 R$ refundable fee or a 2-month Roblox Plus/Premium subscription**, and an **evaluation**: the game first runs for age-checked 16+ users until it reaches **100 unique plays by "highly engaged" players within 60 days**. Before release you can "invite up to 10 similar-aged friends" as testers. | **This changes launch steps 4, 8 and 9:** plan change K, to confirm before task 9. |
+
+### Graphics defaults (change G, from the batch 2 proof)
+
+The phone proof (57–60 FPS with 78 crystals, no fallback needed) keeps the defaults at today's look. `Config/Graphics.luau` (task 2) holds two profiles:
+
+| Field | `Full` (default; also used for `Automatic`) | `Low` (`SavedQualityLevel` 1–3) | Today's code |
+|---|---|---|---|
+| `LightsMinTier` (un-mutated crystals get a PointLight from this tier up) | 7 (Epic and Legendary) | 9 (Legendary only) | `GLOW_TIER = 7` in `CrystalVisuals` |
+| `MutationLights` | true | true (mutations are rare and are the main "wow") | always on |
+| `ParticleRate` multiplier | 1 | 0.5 | sparkles 4/s, embers 6/s |
+| `GlassShell` | true | true (turning it off changes the look; kept as a switch for later) | always on |
+
+`Automatic` keeps `Full`, because the engine already lowers its rendering on weak devices. The profile is re-read when `SavedQualityLevel` changes. The phone stress reading is repeated after the polish (task 10).
+
+### Plan change K (pending; to confirm with you before task 9)
+
+**Launch audience.** Under today's release rules, the live game can start only with **age-checked 16+ players**. Reaching under-16s, most of this game's audience, needs your account steps (ID verification, 2FA), the full questionnaire, the 1,000 R$ refundable fee (or 2 months of Plus/Premium), and then 100 engaged 16+ plays within 60 days. The plan's "make it public" therefore becomes: release to 16+ first, then all ages once the evaluation passes. The **playtest** (launch step 8) can use the "invite up to 10 friends" preview instead of a public release. The account steps take time, so you may want to start them early.
