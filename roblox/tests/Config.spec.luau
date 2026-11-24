@@ -276,6 +276,56 @@ return function(test)
 		end
 	end)
 
+	test("Lighting Effects: has ClockTime, Atmosphere, ColorCorrection and Bloom", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local effects = Lighting.Effects
+		expect(type(effects.ClockTime)):toBe("number")
+		expect(type(effects.Atmosphere)):toBe("table")
+		expect(type(effects.ColorCorrection)):toBe("table")
+		expect(type(effects.Bloom)):toBe("table")
+	end)
+
+	test("Lighting Effects: Atmosphere ranges and colours", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local atmosphere = Lighting.Effects.Atmosphere
+		expect(atmosphere.Density >= 0):toBeTruthy()
+		expect(atmosphere.Density <= 1):toBeTruthy()
+		expect(atmosphere.Haze >= 0):toBeTruthy()
+		expect(atmosphere.Glare >= 0):toBeTruthy()
+		expect(type(atmosphere.Offset)):toBe("number")
+		for _, colour in { atmosphere.Color, atmosphere.Decay } do
+			expect(#colour):toBe(3)
+			for _, v in colour do
+				expect(type(v)):toBe("number")
+				expect(v % 1):toBe(0)
+				expect(v >= 0):toBeTruthy()
+				expect(v <= 255):toBeTruthy()
+			end
+		end
+	end)
+
+	test("Lighting Effects: ColorCorrection Saturation and Contrast in [-1, 1]", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local grade = Lighting.Effects.ColorCorrection
+		expect(type(grade.Brightness)):toBe("number")
+		for _, v in { grade.Saturation, grade.Contrast } do
+			expect(type(v)):toBe("number")
+			expect(v >= -1):toBeTruthy()
+			expect(v <= 1):toBeTruthy()
+		end
+	end)
+
+	test("Lighting Effects: Bloom values are non-negative", function()
+		local Lighting = require("../src/shared/Config/Lighting")
+		local bloom = Lighting.Effects.Bloom
+		expect(type(bloom.Intensity)):toBe("number")
+		expect(type(bloom.Size)):toBe("number")
+		expect(type(bloom.Threshold)):toBe("number")
+		expect(bloom.Intensity >= 0):toBeTruthy()
+		expect(bloom.Size >= 0):toBeTruthy()
+		expect(bloom.Threshold >= 0):toBeTruthy()
+	end)
+
 	test("Batch 3: announce lists name real mutation and size bands; LeaderboardRows is 10", function()
 		local Game = require("../src/shared/Config/Game")
 		local mutations, sizes = {}, {}

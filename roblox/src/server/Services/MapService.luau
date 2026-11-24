@@ -1,8 +1,10 @@
 --!strict
 -- Builds the whole world procedurally from simple anchored Parts: the ground, the hub disc with the
--- HeartCrystal, six radial paths and six grow-plots (floor, walls, sign, spawn point, 13 pedestals each).
+-- HeartCrystal, six radial paths and six grow-plots (floor, walls, sign, spawn point, 13 pedestals and the cave
+-- decoration each).
 -- Other services depend on the exact names in this hierarchy, so keep them stable.
--- The default Lighting level is set here too (values in Config/Lighting); the final art pass happens in batch 6.
+-- The Lighting mood (brightness level, Atmosphere, colour correction, bloom) is set here too; values live in
+-- Config/Lighting.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
@@ -11,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
 local LightingConfig = require(Shared.Config.Lighting)
 local Strings = require(Shared.Strings.Strings)
+local CaveDecor = require(Shared.Logic.CaveDecor)
 
 local MapService = {}
 
@@ -37,6 +40,18 @@ local GROUND_COLOR = Color3.fromRGB(50, 50, 66)
 local CAVE_FLOOR_COLOR = Color3.fromRGB(70, 70, 92) -- plot floors and paths
 local HUB_FLOOR_COLOR = Color3.fromRGB(80, 80, 104)
 local PEDESTAL_UNLOCKED_COLOR = Color3.fromRGB(120, 120, 140)
+-- Stalagmite rock: the cave rock darkened slightly so the tips stand out against the walls.
+local DECOR_ROCK_COLOR = ROCK_COLOR:Lerp(Color3.new(0, 0, 0), 0.15)
+-- The three crystal-cluster colours, picked by the layout's ColorIndex (1..3).
+-- Strongly saturated and a little dark on purpose: Neon plus the brightness levels' exposure lift these a lot,
+-- and paler colours washed out to white on screen (batch 6 task 3, your check).
+local CLUSTER_COLORS = {
+	Color3.fromRGB(30, 110, 255),
+	Color3.fromRGB(130, 40, 255),
+	Color3.fromRGB(230, 30, 150),
+}
+-- Cheaper substitute for real lights along the paths: thin neon lines on the floor.
+local PATH_GLOW_COLOR = Color3.fromRGB(90, 170, 255)
 
 -- Cylinders have their axis on X, so this stands one upright with Y as the height.
 local UPRIGHT = CFrame.Angles(0, 0, math.rad(90))
@@ -350,15 +365,31 @@ local function buildPaths(map: Folder)
 	for index = 1, GameConfig.PlotCount do
 		local angle = math.rad((index - 1) * 60)
 		local centre = Vector3.new(math.sin(angle) * midRadius, FLOOR_TOP - 0.1, math.cos(angle) * midRadius)
+		-- Yawing by `angle` makes the part's local +Z point straight out along the plot's direction.
+		local pathCFrame = CFrame.new(centre) * CFrame.Angles(0, angle, 0)
 		makePart({
 			Name = "Path_" .. index,
 			Size = Vector3.new(12, 0.2, length),
-			-- Yawing by `angle` makes the part's local +Z point straight out along the plot's direction.
-			CFrame = CFrame.new(centre) * CFrame.Angles(0, angle, 0),
+			CFrame = pathCFrame,
 			Material = Enum.Material.Slate,
 			Color = CAVE_FLOOR_COLOR,
 			Parent = paths,
 		})
+
+		-- Glowing guide lines down both edges of the path, from the hub rim to the cave mouth. Neon only (no
+		-- lights) so six paths stay cheap to render.
+		for _, side in { { Suffix = "L", X = -5.6 }, { Suffix = "R", X = 5.6 } } do
+			makePart({
+				Name = "PathGlow_" .. index .. "_" .. side.Suffix,
+				Size = Vector3.new(0.3, 0.05, length),
+				CFrame = pathCFrame * CFrame.new(side.X, 0.125, 0),
+				Material = Enum.Material.Neon,
+				Color = PATH_GLOW_COLOR,
+				CanCollide = false,
+				CanQuery = false,
+				Parent = paths,
+			})
+		end
 	end
 
 	paths.Parent = map
@@ -531,6 +562,86 @@ local function buildPedestals(plotModel: Model, plotFrame: CFrame)
 	folder.Parent = plotModel
 end
 
+-- Cave decoration: 8-12 rock stalagmites standing on the floor and 3 crystal clusters growing out of the walls.
+-- The pure CaveDecor module decides where everything goes; the RNG is seeded from the plot index, so every
+-- server builds exactly the same caves.
+local function buildDecor(plotModel: Model, plotFrame: CFrame, index: number)
+	local decor = Instance.new("Model")
+	decor.Name = "Decor"
+
+	local rng = Random.new(7919 * index + 17)
+	local layout = CaveDecor.layout(function()
+		return rng:NextNumber()
+	end)
+
+	-- Stalagmites: a wide base with a narrower tip standing on it; both share the yaw and the small tilt.
+	for rockIndex, rock in layout.Stalagmites do
+		local baseHeight = rock.Height * 0.6
+		local tipHeight = rock.Height * 0.5
+		local rotation = CFrame.Angles(0, math.rad(rock.Yaw), 0) * CFrame.Angles(0, 0, math.rad(rock.Tilt))
+		-- Base: centred half its height above the floor, so it stands on the plot floor.
+		local baseCentre = plotFrame * CFrame.new(rock.X, FLOOR_TOP + rock.Height * 0.3, rock.Z)
+		makePart({
+			Name = "Stalagmite_" .. rockIndex .. "_Base",
+			Size = Vector3.new(rock.Width, baseHeight, rock.Width),
+			CFrame = baseCentre * rotation,
+			Material = Enum.Material.Rock,
+			Color = DECOR_ROCK_COLOR,
+			CanCollide = true,
+			Parent = decor,
+		})
+		-- Tip: bottom flush with the base's top face, turned a further 15 degrees for a rough, natural look.
+		local tipCentre = baseCentre * CFrame.new(0, baseHeight / 2 + tipHeight / 2, 0)
+		makePart({
+			Name = "Stalagmite_" .. rockIndex .. "_Tip",
+			Size = Vector3.new(rock.Width * 0.55, tipHeight, rock.Width * 0.55),
+			CFrame = tipCentre * rotation * CFrame.Angles(0, math.rad(15), 0),
+			Material = Enum.Material.Rock,
+			Color = DECOR_ROCK_COLOR,
+			CanCollide = true,
+			Parent = decor,
+		})
+	end
+
+	-- Crystal clusters: prism shards anchored on the inner face of a wall, leaning into the cave.
+	for _, cluster in layout.Clusters do
+		local anchor: Vector3 -- plot-local point on the wall's inner face
+		local wallRotation: CFrame -- local +Y points out of the wall into the cave
+		local colour = CLUSTER_COLORS[cluster.ColorIndex] or CLUSTER_COLORS[1]
+		if cluster.Wall == "Left" then
+			anchor = Vector3.new(-PLOT_HALF_WIDTH, FLOOR_TOP + cluster.Y, cluster.Along)
+			wallRotation = CFrame.Angles(0, 0, -math.pi / 2)
+		elseif cluster.Wall == "Right" then
+			anchor = Vector3.new(PLOT_HALF_WIDTH, FLOOR_TOP + cluster.Y, cluster.Along)
+			wallRotation = CFrame.Angles(0, 0, math.pi / 2)
+		else
+			anchor = Vector3.new(cluster.Along, FLOOR_TOP + cluster.Y, PLOT_HALF_DEPTH)
+			wallRotation = CFrame.Angles(-math.pi / 2, 0, 0)
+		end
+		for prismIndex, prism in cluster.Prisms do
+			-- Pitch is measured from the wall plane, so the shard still points into the cave at every angle;
+			-- Yaw spins that lean around the wall normal so the prisms fan out.
+			local rotation = wallRotation
+				* CFrame.Angles(0, math.rad(prism.Yaw), 0)
+				* CFrame.Angles(math.rad(90 - prism.Pitch), 0, 0)
+			-- The prism is Length long on its local Y, so its centre sits half a length along that axis.
+			local centre = anchor + rotation * Vector3.new(0, prism.Length / 2, 0)
+			makePart({
+				Name = "Cluster_" .. cluster.Wall .. "_" .. prismIndex,
+				Size = Vector3.new(prism.Width, prism.Length, prism.Width),
+				CFrame = plotFrame * CFrame.new(centre) * rotation,
+				Material = Enum.Material.Neon,
+				Color = colour,
+				CanCollide = false,
+				CanQuery = false,
+				Parent = decor,
+			})
+		end
+	end
+
+	decor.Parent = plotModel
+end
+
 -- One plot: floor, walls, sign, spawn point and pedestals, all placed through that plot's frame.
 local function buildPlot(index: number): Model
 	local plotFrame = plotFrameFor(index)
@@ -551,6 +662,7 @@ local function buildPlot(index: number): Model
 	buildSign(plot, plotFrame)
 	buildSpawnPoint(plot, plotFrame)
 	buildPedestals(plot, plotFrame)
+	buildDecor(plot, plotFrame, index)
 
 	plot.PrimaryPart = floorPart
 	plot.WorldPivot = plotFrame
@@ -574,12 +686,19 @@ local function buildPlots(map: Folder)
 	plots.Parent = map
 end
 
--- Night mood for the whole game: the default brightness level, short fog and a soft bloom on the neon.
--- Each client then applies its player's own level on top (LightingController).
+-- Night mood for the whole game: the default brightness level, the shared Atmosphere/ColorCorrection/Bloom
+-- effects from Config/Lighting, and midnight (ClockTime 0). The brightness presets change only the ambient
+-- light, brightness and exposure; the effects look the same at every level. Each client then applies its
+-- player's own level on top (LightingController).
 local function setupLighting()
 	local preset = LightingConfig.Presets[LightingConfig.Default]
 	assert(preset ~= nil, "[MapService] Config/Lighting Default must name a preset")
-	Lighting.ClockTime = 0
+	local effects = LightingConfig.Effects
+	local atmosphereConfig = effects.Atmosphere
+	local gradeConfig = effects.ColorCorrection
+	local bloomConfig = effects.Bloom
+
+	Lighting.ClockTime = effects.ClockTime
 	Lighting.Brightness = preset.Brightness
 	Lighting.ExposureCompensation = preset.ExposureCompensation
 	Lighting.Ambient = Color3.fromRGB(preset.Ambient[1], preset.Ambient[2], preset.Ambient[3])
@@ -587,25 +706,64 @@ local function setupLighting()
 		Color3.fromRGB(preset.OutdoorAmbient[1], preset.OutdoorAmbient[2], preset.OutdoorAmbient[3])
 	Lighting.EnvironmentDiffuseScale = 0.3
 	Lighting.EnvironmentSpecularScale = 0.3
-	Lighting.FogColor = Color3.fromRGB(10, 10, 24)
-	Lighting.FogEnd = 600
 
-	-- Reuse an existing Bloom so reloads don't stack effects.
-	local existing = Lighting:FindFirstChild("Bloom")
-	local bloom: BloomEffect
-	if existing ~= nil and existing:IsA("BloomEffect") then
-		bloom = existing
+	-- Atmosphere: the blue-purple haze that replaces the old fog. (Roblox hides the Fog properties while
+	-- Lighting contains an Atmosphere, so the fog values are gone.)
+	local existingAtmosphere = Lighting:FindFirstChild("Atmosphere")
+	if existingAtmosphere ~= nil and not existingAtmosphere:IsA("Atmosphere") then
+		existingAtmosphere:Destroy()
+		existingAtmosphere = nil
+	end
+	local atmosphere: Atmosphere
+	if existingAtmosphere ~= nil then
+		atmosphere = existingAtmosphere :: Atmosphere
 	else
-		if existing ~= nil then
-			existing:Destroy()
-		end
+		atmosphere = Instance.new("Atmosphere")
+		atmosphere.Name = "Atmosphere"
+		atmosphere.Parent = Lighting
+	end
+	atmosphere.Density = atmosphereConfig.Density
+	atmosphere.Offset = atmosphereConfig.Offset
+	atmosphere.Color = Color3.fromRGB(atmosphereConfig.Color[1], atmosphereConfig.Color[2], atmosphereConfig.Color[3])
+	atmosphere.Decay = Color3.fromRGB(atmosphereConfig.Decay[1], atmosphereConfig.Decay[2], atmosphereConfig.Decay[3])
+	atmosphere.Glare = atmosphereConfig.Glare
+	atmosphere.Haze = atmosphereConfig.Haze
+
+	-- Colour correction: a gentle grade that keeps the neon crystals vivid without washing out the rock.
+	local existingGrade = Lighting:FindFirstChild("ColorCorrection")
+	if existingGrade ~= nil and not existingGrade:IsA("ColorCorrectionEffect") then
+		existingGrade:Destroy()
+		existingGrade = nil
+	end
+	local grade: ColorCorrectionEffect
+	if existingGrade ~= nil then
+		grade = existingGrade :: ColorCorrectionEffect
+	else
+		grade = Instance.new("ColorCorrectionEffect")
+		grade.Name = "ColorCorrection"
+		grade.Parent = Lighting
+	end
+	grade.Saturation = gradeConfig.Saturation
+	grade.Contrast = gradeConfig.Contrast
+	grade.Brightness = gradeConfig.Brightness
+
+	-- Bloom: reuse an existing Bloom so reloads don't stack effects.
+	local existingBloom = Lighting:FindFirstChild("Bloom")
+	if existingBloom ~= nil and not existingBloom:IsA("BloomEffect") then
+		existingBloom:Destroy()
+		existingBloom = nil
+	end
+	local bloom: BloomEffect
+	if existingBloom ~= nil then
+		bloom = existingBloom :: BloomEffect
+	else
 		bloom = Instance.new("BloomEffect")
 		bloom.Name = "Bloom"
 		bloom.Parent = Lighting
 	end
-	bloom.Intensity = 0.8
-	bloom.Size = 24
-	bloom.Threshold = 0.85
+	bloom.Intensity = bloomConfig.Intensity
+	bloom.Size = bloomConfig.Size
+	bloom.Threshold = bloomConfig.Threshold
 end
 
 -- Builds the entire world plus the Lighting setup. Must not yield: nothing here waits for anything.

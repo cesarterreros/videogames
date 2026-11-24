@@ -1,6 +1,6 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–1 done; plan change K pending (before task 9); see **Progress** and **Findings**.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–3 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
 
 ## Context
 
@@ -233,7 +233,7 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
 **Carried over:** a restricted player (no test account); a 15-second receipt save timeout; the Crystal Surge in play; a real Molten or Prismatic announcement; the Codex completion bonus in play. **Closed as by design:** "1.2K" hiding small coin changes (`Format.compact`; the coin fly's tick-up shows the change).
 
 - **Task 1 done (2026-11-24, orchestrator):** the outside facts are checked (Findings → Task 1) and the `Graphics` defaults are set (Findings → Graphics defaults). Two findings change later steps: the Atmosphere replaces today's fog (task 3), and the release rules give **plan change K** (pending, to confirm before task 9). No code changed.
-- **Tasks 2 and 2b: code done (2026-11-24); checks by eye still open.**
+- **Tasks 2 and 2b done (2026-11-24).**
   - **Change A (orchestrator):** [UIController.luau](../../roblox/src/client/Controllers/UIController.luau): the offer waits until the screen has been clear (tutorial done, no panel, no result card) for 3 s in a row, with no time limit. One wait runs at a time; a newer card replaces it.
   - **Task 2, job 1 (DeepSeek Flash; stopped on its token budget with every file written, so no retry):**
     - New pure [Logic/CoinFly.luau](../../roblox/src/shared/Logic/CoinFly.luau) (`iconCount`: 6–12 icons by coin amount; `split`: whole shares that sum exactly) with `CoinFly.spec` (9 tests).
@@ -275,6 +275,25 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
   - **Change A, Studio local server with 2 test players (2026-11-24, test profiles `Player_-1` / `Player_-2`, which own no pass):** both got `[Offer] shown DoubleCoins` while the Daily panel (a new day for them) was open. At 50 s or more after the send, Player1's popup was still waiting, not dropped. You closed Daily in Player1's window and the Double Coins card was showing at the next check (21:58:09 UTC, more than 70 s after the send). Player2, with Daily still open, kept waiting with no popup. **Passed: T1 is fixed.**
 
   - **Device Simulator, Galaxy A16 (viewport 685 × 338; Play Solo, your DEV profile, Fast Grow forced off, 2026-11-24):** Finish now shown, then hidden in the last 10 s; glow ring; coin fly on a real shatter (+39); the Luck and "Auto ON / OFF" texts fit; the top-of-screen label drops below the HUD; the fake Colossal Prismatic (sent twice: the first time pedestal 1 was out of view) shook, flashed and burst in rainbow shards. **All passed** (your checks). Auto left off ("Auto OFF"). The client log shows both fake results and no errors from our code.
+
+- **Task 3 done (2026-11-24).** One DeepSeek Flash job, which stopped on its token budget with all 5 files written (no retry). It left a test log, `roblox/out.txt`, which I deleted. The recovery journal was checked and acknowledged.
+  - [Config/Lighting.luau](../../roblox/src/shared/Config/Lighting.luau) gains `Effects`: `ClockTime` 0; Atmosphere density 0.35 with a blue-purple colour (80, 70, 140) and decay (40, 30, 80), haze 1; ColorCorrection saturation +0.1, contrast +0.05; Bloom 0.8 / 24 / **1.1**. `Config.spec` checks the ranges.
+  - New pure [Logic/CaveDecor.luau](../../roblox/src/shared/Logic/CaveDecor.luau) with `CaveDecor.spec` (200 seeds): 8–12 stalagmites by rejection sampling, at least 5 studs from every pedestal, 6 from the spawn point, out of the entrance lane and 4 from each other; 3 wall clusters (left, right, back) of 3–4 prisms.
+  - [MapService.luau](../../roblox/src/server/Services/MapService.luau):
+    - The lighting comes from `Effects`. The two fog lines are gone, since the Atmosphere hides the fog (change F).
+    - Every plot gets a `Decor` model built from `Random.new(7919 × index + 17)`, the same on every server: rock stalagmites (base plus tip) and Neon prisms leaning into the cave, with no lights.
+    - Two Neon guide strips run along each hub path.
+  - Tests **270 passed, 0 failed** (254 + 16); StyLua clean; `rojo build` succeeds.
+  - **Studio Play Solo (synced byte for byte):** no errors.
+    - Per plot (stalagmites / cluster prisms): Plot_1 12/11, Plot_2 8/11, Plot_3 8/11, Plot_4 9/10, Plot_5 9/10, Plot_6 12/11. 12 path glow strips.
+    - Lighting has the Atmosphere (density 0.35), ColorCorrection and Bloom, and `ClockTime` 0.
+    - **Noticed:** the place file's Lighting also holds a `Sky`, a `DepthOfField` and a `SunRays` that our code doesn't create. Task 7 checks what the launch build (`rojo build`) contains.
+    - **Bloom 0.85 vs 1.1:** two Studio captures from the same camera look the same (Studio's capture may not show the difference); you judge it by eye.
+  - **Your checks by eye (2026-11-24):**
+    - **Bloom:** you compared 0.85 and 1.1 on your client and chose to **keep 1.1** (the plan's value).
+    - **All 3 brightness levels readable** with the new lighting and decoration (Normal, Bright, Dark): **passed**.
+    - **Wall clusters washed out to near white:** at your request they are tinted more strongly. `CLUSTER_COLORS` changed from (120, 200, 255) / (190, 130, 255) / (255, 140, 210) to **(30, 110, 255) / (130, 40, 255) / (230, 30, 150)**. A new capture shows clearly blue and magenta clusters. Tests 270/270; StyLua clean.
+    - **The new cluster colours, the glowing hub paths and the haze:** **passed** (your check, Play Solo). **Task 3 done.**
 
     **Still open from tasks 2 and 2b:** the tutorial's world bubble near the HUD (its own placement code wasn't changed); the Odds row with both boosts (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
 
