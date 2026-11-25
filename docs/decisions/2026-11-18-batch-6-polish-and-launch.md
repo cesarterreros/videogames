@@ -1,6 +1,6 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–3 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–4 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
 
 ## Context
 
@@ -295,6 +295,12 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
     - **Wall clusters washed out to near white:** at your request they are tinted more strongly. `CLUSTER_COLORS` changed from (120, 200, 255) / (190, 130, 255) / (255, 140, 210) to **(30, 110, 255) / (130, 40, 255) / (230, 30, 150)**. A new capture shows clearly blue and magenta clusters. Tests 270/270; StyLua clean.
     - **The new cluster colours, the glowing hub paths and the haze:** **passed** (your check, Play Solo). **Task 3 done.**
 
+- **Task 4 done (2026-11-24, orchestrator): no hardening fix needed.** Details in Findings → Task 4.
+  - [dev/FuzzClient.client.luau](../../roblox/dev/FuzzClient.client.luau) is new, outside the Rojo project (`default.project.json` maps only `src/shared`, `src/server` and `src/client`).
+  - Two 60-second runs (Play Solo, then a 2-player local server) changed no profile field, and the server logged no warning, no error and no handler failure.
+  - The review table passes on every row.
+  - Rate limits are unchanged: no honest request was rejected in any of this batch's play sessions.
+
     **Still open from tasks 2 and 2b:** the tutorial's world bubble near the HUD (its own placement code wasn't changed); the Odds row with both boosts (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
 
 ## Findings
@@ -331,6 +337,48 @@ The phone proof (57–60 FPS with 78 crystals, no fallback needed) keeps the def
 | `GlassShell` | true | true (turning it off changes the look; kept as a switch for later) | always on |
 
 `Automatic` keeps `Full`, because the engine already lowers its rendering on weak devices. The profile is re-read when `SavedQualityLevel` changes. The phone stress reading is repeated after the polish (task 10).
+
+### Task 4: anti-exploit review and fuzz runs (2026-11-24)
+
+**The security layer** ([RemoteService.luau](../../roblox/src/server/Services/RemoteService.luau), [Logic/Validate.luau](../../roblox/src/shared/Logic/Validate.luau)). Every client → server request goes through one `dispatch`:
+1. Profile loaded, or the request is dropped (not counted as an anomaly).
+2. A per-player, per-remote token bucket (default 8/s, burst 12; ShatterAll 2/s, ClaimDaily 1/s, RequestAd 1/s, RequestInstantGrow 2/s).
+3. The schema: type, whole number, range, allowed values, nil only where `optional`, and **no extra arguments**. NaN and ±inf fail as "not a finite number"; tables and instances never match an enum.
+4. The handler inside `pcall`.
+
+More than 50 rejections a minute logs one `Anomaly` event; nobody is kicked. Remotes exist only from the server list; there are no `InvokeClient` calls.
+
+**Review table (one row per client → server remote; all 13 pass):**
+
+| Remote | Validates its arguments | Acts only on the caller's own data/plot | Never uses client amounts | Grants only after checks | Can't pay twice |
+|---|---|---|---|---|---|
+| `Plant` | int 1–13, seed ID from the list | `PlotService:GetPedestal` returns nil outside the caller's plot; unlocked; empty | Seed from the caller's bag; rolls on the server | Every check first, then the seed is taken and the crystal stored | An occupied pedestal refuses the next plant |
+| `Shatter` | int 1–13 | Caller's `data.Pedestals` and own pedestal | Coins and carats from config, rolls and server time | Must exist and be ready | Crystal removed before the coins are added, no yield between |
+| `ShatterAll` | no arguments, 2/s | Loops over the caller's 13 pedestals | Same as Shatter | Same as Shatter | Same as Shatter |
+| `BuySeed` | seed ID, qty 1 or 5 | Caller's coins and bag | Price from config | Tier unlock and coins checked; `SpendCoins` refuses when short | One spend per add, no yield |
+| `BuyUpgrade` | "Pedestal" or "Lamp" | Caller's profile | Cost from config | Max level and coins checked | Same |
+| `ClaimDaily` | no arguments, 1/s | Caller's streak | Rewards from config | `Streak.claim` needs a new UTC date | A second claim the same day: "Already claimed" |
+| `ClaimGoal` | 1, 2, 3 or "Bonus" | Caller's goals | Reward from config and the caller's tier | `canClaim` / `canClaimBonus` on server-tracked progress | `Claimed` / `BonusClaimed` flags |
+| `TutorialAction` | int 1–8 | Caller's tutorial | — | Only 4 or 8, only as the next step | A step advances once |
+| `SetSetting` | "AutoShatter" or "Music", bool | Caller's settings | — | AutoShatter only for pass owners; the loop re-checks the pass | n/a (cosmetic) |
+| `SetBrightness` | "Dark", "Normal" or "Bright" | Caller's settings | — | — | n/a (cosmetic) |
+| `RequestInstantGrow` (RemoteFunction) | int 1–13, 2/s | `SecondsLeft` only for the caller's growing crystal | Tier and product picked by the server | Grants nothing itself; returns the product ID, the grant comes through ProcessReceipt | Receipts are recorded per PurchaseId (batch 5) |
+| `UseToken` | int 1–13 | Caller's growing crystal | Token tier picked by the server | Needs a covering token | The token is decremented and the crystal finished with no yield between |
+| `RequestAd` | placement from the list, optional int 1–13, 1/s | FinishNow target must be the caller's growing crystal (S tier) | Product picked by the server | Tutorial, policy, caps, cooldown, ad already running, placement rule | The reward only comes through ProcessReceipt; counted when requested |
+
+**Not remotes, also checked:** `ProcessReceipt` is assigned once and records every PurchaseId (batch 5). The debug hooks are gated: `DebugPass_<Key>` (PassService) and `ServerStorage.DebugProcessReceipt` (ReceiptService) only in Studio; `DebugAnnounce` only in Studio; `StressTest` only in Studio or the DEV universe. A client setting its own Player attribute doesn't replicate to the server.
+
+**Fuzz runs** (the script's three call kinds are explained in its header):
+
+| Run | Calls | Result |
+|---|---|---|
+| Play Solo, your DEV profile (03:10 UTC) | 3,705 schema-invalid, 118 schema-valid but forbidden (a 136-entry list: 6 locked, 7 empty pedestals), a 200-call burst; 0 InvokeServer calls returned a value; 0 send errors | **0 of 46 profile fields changed** (coins 8,719 before and after). Server still running. The burst was rate-limited, and the `Anomaly` custom event fired once as designed. The server's log history (it keeps only about the last 500 lines) held 0 warnings and 0 errors. |
+| Local server, 2 players (03:14 UTC): Player1 fuzzing, Player2 a bystander | 3,718 invalid, 118 forbidden (a 77-entry list: 10 locked, 2 occupied, 1 empty), a 200-call burst; other players' pedestals and characters among the junk | **Player1: 0 of 57 fields changed. Player2: 0 of 48 fields changed.** A `LogService.MessageOut` counter on the server over the whole run: **3,922 rejections, 0 handler failures, 0 warnings, 0 errors.** Both players were still connected at the end. |
+
+**Notes:**
+- **Snapshots:** `SetBrightness` only answers with a `StateSync` when the level changes, so the fuzz switches to another level and back.
+- **Brightness reset:** a first probe that sent your current level reset your saved DEV brightness to **Normal**.
+- **Event connections:** an event connection left by an MCP call that has already returned stopped receiving events. So the committed script keeps everything in one call. It is the same logic as the two runs, restructured, and not re-run as a file.
 
 ### Plan change K (pending; to confirm with you before task 9)
 
