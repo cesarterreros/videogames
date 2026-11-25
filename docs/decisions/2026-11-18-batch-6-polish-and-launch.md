@@ -1,12 +1,12 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–5 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–5 and 7 done (2b included; its both-boosts Odds check moves to a later task); **task 6 waits for the Creator Dashboard** (due about 14:15 UTC on 2026-11-26); plan change L confirmed 2026-11-25; plan change K pending (before task 9); see **Progress** and **Findings**.
 
 ## Summary
 
 - **What:** the last batch: polish (coin fly, shake, glow ring, lighting, cave decoration, graphics profiles), an analytics audit, a fuzz test of every remote, a dev-only admin command, the launch checklist, and publishing to a new live experience.
 - **Decided:** the admin command is off in live (allowlist: Studio, or the DEV universe and its owner); the fuzz script lives outside the Rojo project in `roblox/dev/`; you switch the game to Public yourself once the checklist is all ✅. Plan changes A–J (from batch 5's findings) confirmed 2026-11-24.
-- **Status:** in progress. Tasks 0–5 done (polish, lighting, fuzz review, admin command). Next: analytics audit (6), checklist (7), store listing and thumbnails (8), live setup (9), phone playtest (10), final review (11).
+- **Status:** in progress. Tasks 0–5 and 7 done (polish, lighting, fuzz review, admin command, [launch checklist](../launch-checklist.md)). Task 6 (analytics audit) has its fixes in and waits for the dashboard (due 2026-11-26). Next: store listing and thumbnails (8), live setup (9), phone playtest (10), final review (11). Plan change L (no `SessionEnd`; Engagement instead) confirmed 2026-11-25.
 - **Pending decision, plan change K (before task 9):** under current Roblox rules the live game starts for age-checked **16+ players only**; reaching all ages needs ID verification, the full questionnaire, a 1,000 R$ refundable fee, and 100 engaged 16+ plays within 60 days.
 
 ## Context
@@ -102,7 +102,7 @@ To check in official docs in task 1, recording the URL and date:
 ### Analytics audit
 - **Event table:** every event from the MVP and monetization specs, with the file and line that logs it; a dashboard screenshot proves each one arrived.
 - **Limits:** at most 10 funnels (we use 2: onboarding and FirstPurchase), at most 5 currency types (we use 1: "Coins"), at most 20 transaction types, at most 100 SKUs.
-- **`SessionEnd`** (minutes played) is logged on `PlayerRemoving`.
+- ~~**`SessionEnd`** (minutes played) is logged on `PlayerRemoving`.~~ **Dropped by plan change L** (2026-11-25): session length comes from the built-in Engagement dashboard.
 
 ### Launch (live experience)
 1. **Create the live experience "Crystal Grove 💎"** (Studio: File → Publish As → Create new experience), separate from DEV. **Studio API access stays OFF** for live.
@@ -173,7 +173,7 @@ Escalation: as in earlier batches. **If the playtest finds a blocker**, fix it i
 - **Leaderboard:** a new weekly best appears on the hub board within 2 minutes, in the correct week's store.
 - **Performance:** at least 30 FPS on a real mid-range phone with 6 full caves (stress mode).
 - **Monetization:** all 5 passes and 10 products exist in the **live** experience and pass a real 9 R$ purchase test; ad buttons are hidden while ads are unavailable.
-- **Analytics:** the onboarding funnel (8 steps), economy events and the custom events are visible in the dashboard from a test session.
+- **Analytics:** the onboarding funnel (8 steps), economy events and the custom events are visible in the dashboard from a test session. (Plan change L: session length is read from the built-in **Engagement** dashboard; no `SessionEnd` event.)
 - **Content:**
   - no copyrighted names or assets; all audio is licensed from Roblox or made by you;
   - the maturity questionnaire is complete;
@@ -344,6 +344,26 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
 
     **Still open from tasks 2 and 2b:** the Odds row with both boosts. (The tutorial's world bubble near the HUD passed in task 5.) The Odds check (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
 
+- **Task 6 in progress (2026-11-25, orchestrator).** The event table, gaps and limits are in Findings → Task 6; fixes 1–5 and plan change L were confirmed by you on 2026-11-25.
+  - **Code:**
+    - `MutationFound` (value = multiplier; fields: mutation, seed ID) and `WeeklyBest` (value = carats; field: seed ID) in [CrystalService.luau](../../roblox/src/server/Services/CrystalService.luau). Both were missing.
+    - **Change E (T5):** new pure [Logic/FunnelSteps.luau](../../roblox/src/shared/Logic/FunnelSteps.luau). `OfferService` logs a funnel step after any earlier step not yet logged, each step once, so a receipt before the prompt closes gives steps 2 then 3. `FunnelSteps.spec` adds 7 tests.
+    - **PassPurchased:** a purchase Roblox hadn't confirmed when its prompt closed is now logged when the re-check confirms it ([PassService.luau](../../roblox/src/server/Services/PassService.luau)). One confirmed only at the next join is still not logged.
+    - The limits comment in [Analytics.luau](../../roblox/src/server/Services/Analytics.luau) now gives today's limits and usage.
+  - Tests **289 passed, 0 failed**; StyLua clean; `rojo build` succeeds. Studio's sources match the files byte for byte (after a Rojo reconnect: the first comparison showed the old code).
+  - **Not checked in Studio:** Studio sends no analytics events, so the new events are checked on the published DEV place and in the Creator Dashboard (next steps).
+  - **DEV published as v88** (13:04 UTC, after the sizes matched; shown as "Published" in Version History). Open Cloud refuses the version-history endpoint for the MCP token ("Scope must be configured to allow all resources"); the place's `updateTime` (13:04:04 UTC) matches.
+  - **Correction to Findings → Task 1 (server size):** Open Cloud reports the DEV place's `serverSize` as **50**, not 6. The "already 6" was inferred from batch 3's leaderboard count, not read. A 7th player on a DEV server would get no cave; the live place gets 6 in task 9.
+  - **Published session (you, 2026-11-25, ended about 14:15 UTC):** `/cg wipe`, the tutorial, more shatters, a shop buy, the Daily claim. **The offer didn't appear.** The day-1 Starter Pack needs the session's 10th shatter, and the session probably had fewer than 10. So OfferShown, OfferPurchased and the FirstPurchase funnel have no events from it yet. Dashboard check due by about 14:15 UTC on 2026-11-26.
+  - **Second published session (you, 2026-11-25):** the **Starter Pack offer appeared**, which confirms the 10th-shatter rule on the published place. You opened its prompt and closed it without buying. Expected in the dashboard: OfferShown, FirstPurchase steps 1–2; no OfferPurchased, step 3 or sale (change E's step-3 path stays covered by `FunnelSteps.spec`).
+
+- **Task 7 done (2026-11-25, orchestrator):** [docs/launch-checklist.md](../launch-checklist.md), with every acceptance criterion as a row (status and evidence), the 9 launch steps (with the Managed Pricing opt-out, server size 6 and plan change K's notes) and Step 5's thumbnail rules. **Checks run for it today:**
+  - **Fairness: passed.** `SizeRoll` is set only at planting (`Rolls.size`, unpaid); no monetization file refers to `SizeRoll`, overgrowth or `Rolls`. Fast Grow and instant grow change only `ReadyAt`. Carats = `BaseCarats × SizeRoll × (1 + overgrowth)`, so Luck Boost and Double Coins can't change carats. Instant-grown crystals skip the weekly best, and `LeaderboardService:Submit` refuses them.
+  - **Personal data in the repo: none found** (132 tracked and untracked files; the long numbers are public pass, product and audio IDs).
+  - **Copyrighted names: none found** in `roblox/src`; the only external assets are the 7 Roblox-made sounds.
+  - **Dev feature gates (code):** stress mode in Studio or DEV only; seed top-up in Studio only; `/cg` in Studio or DEV only. Trying them in live is task 10.
+  - **Status today:** 11 of 23 rows ✅ (4 of them in DEV, repeated in live), 12 ⏳ (tasks 6, 8, 9, 10), 0 ❌.
+
 ## Findings
 
 ### Task 1: outside facts (checked 2026-11-24)
@@ -360,7 +380,7 @@ Pages read through the Studio MCP doc fetcher; each showed `last_updated: 2026-1
 | Graphics quality | [UserGameSettings](https://create.roblox.com/docs/reference/engine/classes/UserGameSettings.md), [SavedQualitySetting](https://create.roblox.com/docs/reference/engine/enums/SavedQualitySetting.md) | `SavedQualityLevel` is `Automatic` (0, "determined automatically based on device performance") or `QualityLevel1`–`10`. | See **Graphics defaults** below. |
 | Thumbnails | [Thumbnails](https://create.roblox.com/docs/production/publishing/thumbnails.md) | 16:9, ideally 1920 × 1080. Creator Dashboard → game → **Configurations → Places** → a place → **Thumbnails** → **Home Page** tab → Edit active thumbnails → 2–5 **Active**, each under 3 MB → Save → **Start**. Personalization starts only with 2 or more active. Nothing essential at the bottom. | As planned. |
 | Icon | [Icons](https://create.roblox.com/docs/production/publishing/experience-icons.md) | Square, 512 × 512; check it at 150 × 150. | As planned. |
-| Server size | [Places (Open Cloud)](https://create.roblox.com/docs/cloud/reference/features/places.md) | `PATCH /cloud/v2/universes/{u}/places/{p}` with `updateMask=serverSize`: "the maximum number of allowed users in a single server". | Task 9 can set 6 through Open Cloud (or you in the Dashboard). The DEV place is already 6 (batch 3: `OrderedList = 17 = 5 + 2 × 6`). |
+| Server size | [Places (Open Cloud)](https://create.roblox.com/docs/cloud/reference/features/places.md) | `PATCH /cloud/v2/universes/{u}/places/{p}` with `updateMask=serverSize`: "the maximum number of allowed users in a single server". | Task 9 can set 6 through Open Cloud (or you in the Dashboard). ~~The DEV place is already 6 (batch 3: `OrderedList = 17 = 5 + 2 × 6`).~~ **Wrong:** Open Cloud reports DEV's `serverSize` = 50 (checked 2026-11-25, task 6). |
 | Managed Pricing | [Managed pricing](https://create.roblox.com/docs/production/monetization/managed-pricing.md), [Regional pricing](https://create.roblox.com/docs/production/monetization/regional-pricing.md) | "**New games and newly created items are enrolled in Managed pricing by default.** Item-level opt-out is available at any time." It combines price tests and regional pricing (30–100 % of the default price). In-game prices must come from `GetProductInfoAsync`. | The monetization spec says **week 1 at default prices**, so in task 9 the 15 live items are **opted out** (Monetization → Managed Pricing) until week 2. The UI already reads `GetProductInfoAsync`, so regional prices will show correctly later. |
 | Rewarded video | [Rewarded video ads](https://create.roblox.com/docs/production/promotion/rewarded-video-ads.md) | Game: public and unrestricted, with a **reviewed and approved** questionnaire and ≥ 2,000 unique visitors per month. Publisher: 13+, **2FA and ID verification**. Rewards: developer products, not random. Eligibility is under **Monetization → Ads → Eligibility**. | No code change. Your account steps (2FA, ID) are the same as for the all-ages release below. |
 | Analytics delay | [Custom events](https://create.roblox.com/docs/production/analytics/custom-events.md), [Funnel events](https://create.roblox.com/docs/production/analytics/funnel-events.md) | "Events can only be sent from the server and **in published games**. Events can't be sent from the client or **Studio**." Custom events are aggregated daily: "it may take up to 24 hours". | **Task 6's dashboard evidence needs a session on the published DEV place**, then up to a day's wait. Studio only shows the `[Analytics]` prints. |
@@ -424,3 +444,48 @@ More than 50 rejections a minute logs one `Anomaly` event; nobody is kicked. Rem
 ### Plan change K (pending; to confirm with you before task 9)
 
 **Launch audience.** Under today's release rules, the live game can start only with **age-checked 16+ players**. Reaching under-16s, most of this game's audience, needs your account steps (ID verification, 2FA), the full questionnaire, the 1,000 R$ refundable fee (or 2 months of Plus/Premium), and then 100 engaged 16+ plays within 60 days. The plan's "make it public" therefore becomes: release to 16+ first, then all ages once the evaluation passes. The **playtest** (launch step 8) can use the "invite up to 10 friends" preview instead of a public release. The account steps take time, so you may want to start them early.
+
+### Plan change L (confirmed by you on 2026-11-25)
+
+**No `SessionEnd` custom event.** Roblox's analytics reference (the Studio MCP's `rbx-instrument-analytics` skill) says not to log session length as a custom event: the built-in **Engagement** dashboard already reports session time and average session time, which covers the MVP's "average session length" metric. The "Analytics audit" behaviour line and the analytics acceptance criterion now point to Engagement for session length.
+
+### Task 6: analytics audit (2026-11-25)
+
+**Event table** (every event in the MVP and monetization specs; line numbers as of this task):
+
+| Event | API | Logged in | Notes |
+|---|---|---|---|
+| Onboarding steps 1–8 | `LogOnboardingFunnelStepEvent` | `TutorialService` `apply` (called on start, on events, on `TutorialAction`) | Old profiles skip the tutorial with no events |
+| Coins in: shatter | Economy Source, `Gameplay`, SKU = seed ID | `CrystalService` shatter, through `DataService:AddCoins` | |
+| Coins in: tutorial bonus | Economy Source, `Onboarding`, `TutorialBonus` | `CrystalService` shatter | |
+| Coins in: daily reward | Economy Source, `TimedReward`, `Daily_N` | `ProgressionService` `onClaimDaily` | Seed days (3, 7) are not currency: no economy event |
+| Coins in: goal | Economy Source, `Gameplay`, `Goal_<id>` | `ProgressionService` `onClaimGoal` | |
+| Coins in: Coin Pouches, Starter Pack | Economy Source, `IAP`, product key | `ReceiptService` grants | |
+| Coins out: seed, pedestal, lamp | Economy Sink, `Shop`, seed ID / `Pedestal_N` / `Lamp_N` | `ShopService`, through `DataService:SpendCoins` | Admin coin changes set `Coins` directly: no economy event |
+| Seed tier unlocked | `LogProgressionEvent` "SeedTier", Complete, level 2–10 | `ProgressionService` `OnShatter` | Level 1 is the start; never logged |
+| MutationFound | Custom, value = multiplier | `CrystalService` shatter | **Added in this task** |
+| WeeklyBest | Custom, value = carats | `CrystalService` shatter (`newBest`) | **Added in this task**; instant-grown crystals never reach it |
+| StreakClaim | Custom, value = day | `ProgressionService` `onClaimDaily` | |
+| GoalsComplete | Custom | `ProgressionService` `onClaimGoal("Bonus")` | Counts bonus claims, not "all 3 done but unclaimed" |
+| SessionEnd | — | — | **Dropped** (plan change L): Engagement dashboard |
+| OfferShown, OfferPurchased | Custom, field = kind | `OfferService` | |
+| AdRequested | Custom, field = placement | `RewardedAdService` | Counted when requested |
+| AdRewarded | Custom, field = product key | `ReceiptService` (ad channel) | |
+| PassPurchased | Custom, field = pass key | `PassService` | Late confirmation **fixed in this task**; overlaps Roblox's built-in pass sales report (kept: in the spec) |
+| Anomaly | Custom | `RemoteService` (rejections), `DataService` (sanitize), `ReceiptService` (restricted purchase) | |
+| Admin | Custom, field = command | `AdminService` | Dev-only |
+| FirstPurchase funnel 1–3 | `LogFunnelStepEvent` | `OfferService` | **Change E applied**; Roblox also auto-completes skipped earlier steps, so T5 never lost data, only the order |
+
+**Limits** (Roblox's reference today; some differ from the specs):
+
+| Limit | Cap | Used | OK |
+|---|---|---|---|
+| Currencies | 5 (the official [economy events](https://create.roblox.com/docs/production/analytics/economy-events.md) page; the MCP skill's reference says 10) | 1, "Coins" | ✅ |
+| Transaction types | any number; top 20 shown | 5: Gameplay, Onboarding, TimedReward, IAP, Shop | ✅ |
+| Item SKUs | any number; top 100 shown | 39: 10 seeds, `Pedestal_4`–`10`, `Lamp_1`–`5`, 6 `Goal_`, 5 coin `Daily_`, `TutorialBonus`, 3 Coin Pouches, `StarterPack`, `StarterPackConverted` | ✅ |
+| Funnels | 10, onboarding included | 2 | ✅ |
+| Custom event names | 100 | 11 | ✅ |
+| Custom fields | 3 per event, string values, 8,000 combinations | at most 2 per event, a few dozen values | ✅ |
+
+**For after launch:** all events share a limit of 120 + 20 × CCU per minute (dropped silently past it). Each shatter logs one economy event, so a late-game player using Shatter All could go over their share; check the dashboard's volumes in week 1 before batching.
+

@@ -5,7 +5,8 @@
 -- session. Day 2+ players only ever get Double Coins, once 30 s after the profile loads. An offer also needs the
 -- tutorial to be done, the player not restricted by policy, and this experience to actually sell the item.
 -- Funnel "FirstPurchase": 1 OfferShown (when the card is sent), 2 PromptOpened (the prompt closed, any outcome),
--- 3 Purchased (the receipt / the pass turned on). This service changes NO data, grants NOTHING and never yields
+-- 3 Purchased (the receipt / the pass turned on). Steps are logged in order and once each (Logic/FunnelSteps): a receipt
+-- that arrives before its prompt closes logs step 2 first (change E, finding T5). This service changes NO data, grants NOTHING and never yields
 -- inside an event handler (only task.delay schedules work).
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -15,6 +16,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WeekId = require(Shared.Logic.WeekId)
+local FunnelSteps = require(Shared.Logic.FunnelSteps)
 
 local Analytics = require(script.Parent.Analytics)
 local DataService = require(script.Parent.DataService)
@@ -34,6 +36,7 @@ local DOUBLE_COINS = "DoubleCoins"
 local FUNNEL_NAME = "FirstPurchase"
 local STARTER_PACK_SHATTERS = 10
 local DOUBLE_COINS_DELAY_SECONDS = 30
+local STEP_NAMES = { "OfferShown", "PromptOpened", "Purchased" }
 
 -- In-memory only: cleared on PlayerRemoving, never saved in the profile.
 type State = {
@@ -41,8 +44,7 @@ type State = {
 	shown: boolean,
 	kind: string?,
 	funnelId: string?,
-	promptLogged: boolean,
-	purchasedLogged: boolean,
+	logged: { [number]: boolean }, -- funnel steps already logged this session
 	scheduled: boolean,
 }
 
@@ -54,8 +56,7 @@ local function newState(): State
 		shown = false,
 		kind = nil,
 		funnelId = nil,
-		promptLogged = false,
-		purchasedLogged = false,
+		logged = {},
 		scheduled = false,
 	}
 end
@@ -78,6 +79,24 @@ local function canOffer(player: Player): boolean
 	return data.Tutorial.Done == true and not TutorialService:IsActive(player)
 end
 
+-- Logs funnel step `step` of the shown card, after any earlier step not logged yet. Returns false (nothing
+-- logged) if no card was shown or the step was already logged.
+local function logSteps(player: Player, state: State, step: number): boolean
+	local funnelId = state.funnelId
+	if funnelId == nil then
+		return false
+	end
+	local steps = FunnelSteps.toLog(state.logged, step)
+	if #steps == 0 then
+		return false
+	end
+	FunnelSteps.mark(state.logged, steps)
+	for _, n in steps do
+		Analytics:Funnel(player, FUNNEL_NAME, funnelId, n, STEP_NAMES[n])
+	end
+	return true
+end
+
 -- Sends the card and logs funnel step 1. Nothing here yields.
 local function show(player: Player, kind: string)
 	local state = states[player]
@@ -90,7 +109,7 @@ local function show(player: Player, kind: string)
 	state.funnelId = funnelId
 	RemoteService:Fire("Offer", player, { kind = kind })
 	Analytics:Custom(player, "OfferShown", 1, { [Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = kind })
-	Analytics:Funnel(player, FUNNEL_NAME, funnelId, 1, "OfferShown")
+	logSteps(player, state, 1)
 	if IS_STUDIO then
 		print(("[Offer] %s shown %s"):format(player.Name, kind))
 	end
@@ -99,29 +118,21 @@ end
 -- Funnel step 2, once per session: the purchase prompt of the shown card closed (any outcome).
 local function notePromptOpened(player: Player, kind: string)
 	local state = states[player]
-	if state == nil or state.promptLogged or not state.shown or state.kind ~= kind then
+	if state == nil or not state.shown or state.kind ~= kind then
 		return
 	end
-	local funnelId = state.funnelId
-	if funnelId == nil then
-		return
-	end
-	state.promptLogged = true
-	Analytics:Funnel(player, FUNNEL_NAME, funnelId, 2, "PromptOpened")
+	logSteps(player, state, 2)
 end
 
--- Funnel step 3, once per session: the shown card was actually bought.
+-- Funnel step 3, once per session: the shown card was actually bought (step 2 first if its prompt hasn't closed yet).
 local function notePurchased(player: Player, kind: string)
 	local state = states[player]
-	if state == nil or state.purchasedLogged or not state.shown or state.kind ~= kind then
+	if state == nil or not state.shown or state.kind ~= kind then
 		return
 	end
-	local funnelId = state.funnelId
-	if funnelId == nil then
+	if not logSteps(player, state, 3) then
 		return
 	end
-	state.purchasedLogged = true
-	Analytics:Funnel(player, FUNNEL_NAME, funnelId, 3, "Purchased")
 	Analytics:Custom(player, "OfferPurchased", 1, { [Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = kind })
 	if IS_STUDIO then
 		print(("[Offer] %s purchased %s"):format(player.Name, kind))

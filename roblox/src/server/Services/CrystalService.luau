@@ -24,6 +24,7 @@ local InstantGrow = require(Shared.Logic.InstantGrow)
 local LuckBoost = require(Shared.Logic.LuckBoost)
 local MonetizationConfig = require(Shared.Config.Monetization)
 
+local Analytics = require(script.Parent.Analytics)
 local RemoteService = require(script.Parent.RemoteService)
 local DataService = require(script.Parent.DataService)
 local MapService = require(script.Parent.MapService)
@@ -254,6 +255,14 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 	-- 4. Codex, goals, tier unlock.
 	progression():OnShatter(player, result, seed)
 
+	-- 4b. MutationFound (batch 6, task 6): value = the multiplier; the tutorial's guaranteed Glowing counts too.
+	if crystal.Mutation ~= "None" then
+		Analytics:Custom(player, "MutationFound", mutationMult[crystal.Mutation] or 1, {
+			[Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = crystal.Mutation,
+			[Enum.AnalyticsCustomFieldKeys.CustomField02.Name] = seed.Id,
+		})
+	end
+
 	-- 5. Weekly best and the leaderboard queue.
 	-- Instant-grown crystals skip this step entirely (guardrail 2, change L): they neither raise your weekly best
 	-- nor reach the board, so they can't block a later legitimate best.
@@ -265,6 +274,10 @@ local function shatterOne(player: Player, data: { [string]: any }, index: number
 		data.WeeklyBest.Carats = carats
 		result.newBest = true
 		leaderboard():Submit(player, carats, result.instantGrown)
+		-- WeeklyBest (batch 6, task 6): value = the new best's carats.
+		Analytics:Custom(player, "WeeklyBest", carats, {
+			[Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = seed.Id,
+		})
 	end
 
 	-- 6. Rare finds are announced to the server.

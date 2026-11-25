@@ -40,6 +40,16 @@ local function attributeName(key: string): string
 	return "Pass_" .. key
 end
 
+-- Purchases whose prompt said "bought" but that Roblox hadn't confirmed yet: the re-check that confirms one logs
+-- PassPurchased (batch 6, task 6). In-memory only; a purchase confirmed only at the next join isn't logged.
+local unconfirmed: { [Player]: { [string]: boolean } } = {}
+
+local function logPurchased(player: Player, key: string)
+	Analytics:Custom(player, "PassPurchased", 1, {
+		[Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = key,
+	})
+end
+
 local function setOwned(player: Player, key: string, owns: boolean)
 	local set = owned[player]
 	if set == nil or (set[key] == true) == owns then
@@ -80,6 +90,11 @@ local function checkAll(player: Player)
 			task.spawn(function()
 				if query(player, passId) == true and not isForced(player, key) then
 					setOwned(player, key, true)
+					local pending = unconfirmed[player]
+					if pending ~= nil and pending[key] then
+						pending[key] = nil
+						logPurchased(player, key)
+					end
 				end
 			end)
 		end
@@ -149,9 +164,11 @@ local function onPurchaseFinished(player: Player, passId: number, wasPurchased: 
 	local owns = query(player, passId)
 	if owns == true then
 		setOwned(player, key, true)
-		Analytics:Custom(player, "PassPurchased", 1, {
-			[Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = key,
-		})
+		local pending = unconfirmed[player]
+		if pending ~= nil then
+			pending[key] = nil -- a re-check in between didn't log it; log once here
+		end
+		logPurchased(player, key)
 	elseif IS_STUDIO then
 		-- Studio test purchases may not change real ownership; the server event is still trustworthy in Studio.
 		warn(
@@ -160,7 +177,10 @@ local function onPurchaseFinished(player: Player, passId: number, wasPurchased: 
 				.. " not confirmed by UserOwnsGamePassAsync; enabled for this session"
 		)
 		setOwned(player, key, true)
-	else
+	elseif owned[player] ~= nil then
+		local pending = unconfirmed[player] or {}
+		unconfirmed[player] = pending
+		pending[key] = true
 		warn("[Pass] purchase of " .. key .. " not confirmed yet; the re-check or the next join will pick it up")
 	end
 end
@@ -175,6 +195,7 @@ function PassService:Start()
 	Players.PlayerRemoving:Connect(function(player: Player)
 		owned[player] = nil
 		forced[player] = nil
+		unconfirmed[player] = nil
 	end)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(
 		function(player: Player, passId: number, wasPurchased: boolean)

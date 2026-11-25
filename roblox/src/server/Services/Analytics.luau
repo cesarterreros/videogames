@@ -2,12 +2,14 @@
 -- Analytics: thin server-side wrapper around Roblox's AnalyticsService.
 -- Keeps gameplay code decoupled from the raw service and guarantees analytics failures never break gameplay.
 --
--- Respect Roblox's per-experience limits when calling these helpers:
---   * 5 currency types
---   * 20 transaction types
---   * 100 item SKUs
---   * 10 funnels
---   * funnel steps must be in the range 1..100
+-- Roblox's limits (checked 2026-11-25, batch 6 task 6; usage today in brackets):
+--   * 5 currencies (official economy events page) [1: "Coins"]
+--   * transaction types and item SKUs: any number, but the dashboard shows only the top 20 types [5] and the
+--     top 100 SKUs [39]; the rest appear as "Other"
+--   * 10 funnels, the onboarding funnel included [2: onboarding, FirstPurchase]; steps 1..100
+--   * 100 custom event names [11]; 3 custom fields per event, string values, 8,000 value combinations
+--   * all events together: 120 + 20 x CCU per minute; past that, events are dropped silently
+-- Session length isn't logged here: the Engagement dashboard reports it (plan change L).
 
 local AnalyticsService = game:GetService("AnalyticsService")
 local RunService = game:GetService("RunService")
