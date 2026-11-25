@@ -23,6 +23,7 @@ local order: { string } = {
 	"RewardedAdService",
 	"OfferService",
 	"VipService",
+	"AdminService", -- batch 6: dev-only /cg command; creates nothing outside Studio and the DEV universe
 }
 
 local modules: { { name: string, module: any } } = {}

@@ -415,6 +415,15 @@ function CrystalService:FinishNow(player: Player, index: number): boolean
 	return true
 end
 
+-- Batch 6 (AdminService): re-applies the caller's profile to their pedestals (unlock look, crystal attributes)
+-- after an admin command rewrote the profile. Data was already changed; this only redraws. No sync.
+function CrystalService:RefreshPlot(player: Player)
+	local data = DataService:GetData(player)
+	if data ~= nil then
+		refreshPlot(player, data)
+	end
+end
+
 -- Finishes every growing crystal of the caller (Grow All). Returns how many. No sync.
 function CrystalService:FinishAll(player: Player): number
 	local count = 0

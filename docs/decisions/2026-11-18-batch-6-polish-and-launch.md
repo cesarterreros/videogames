@@ -1,6 +1,6 @@
 # Specification: Batch 6, polish, analytics audit, anti-exploit hardening, admin command, launch
 
-Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–4 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
+Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–5 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
 
 ## Context
 
@@ -301,7 +301,41 @@ From batch 5's task 13 findings (T1–T5) and the earlier records' open items. T
   - The review table passes on every row.
   - Rate limits are unchanged: no honest request was rejected in any of this batch's play sessions.
 
-    **Still open from tasks 2 and 2b:** the tutorial's world bubble near the HUD (its own placement code wasn't changed); the Odds row with both boosts (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
+- **Task 5 done (2026-11-24, orchestrator).**
+  - **Code:**
+    - New pure [Logic/AdminCommands.luau](../../roblox/src/shared/Logic/AdminCommands.luau): `parse`, `isAllowed`, `existsHere`; whole numbers only, with limits (coins 0–1,000,000,000, seeds 1–999, tier 1–10). `Admin.spec` adds 12 tests.
+    - New [AdminService.luau](../../roblox/src/server/Services/AdminService.luau), last in the `Main.server` order (19 services).
+    - `CrystalService:RefreshPlot(player)`, which redraws the caller's pedestals after an admin change.
+    - One string, `Admin.Reply` ("Admin: {text}"; the detail text is English and dev-only).
+  - **Where it exists (change H):** `Start` creates the `TextChatCommand` only in Studio or in the DEV universe. Anywhere else, the live experience included, nothing is created.
+  - **Who may use it:** anyone in Studio; in DEV only the experience's owning user. Other players get no answer. One command per 0.5 s per player.
+  - **Reply:** a toast ("Admin: …") instead of a chat system message, since the server has no per-player system-message call and this needs no new remote. Every command logs an `Admin` custom event and prints `[Admin]` to the Output.
+  - **What the commands do beyond the plan's wording:**
+    - `/cg ready` uses `FinishAll`, which marks the crystals instant-grown, so admin crystals never reach the weekly board.
+    - `/cg tutorial reset` also clears your crystals, sets `Stats.Shatters` to 0 and the bag to the template's single Quartz. Otherwise batch 4's skip rule (change B) would mark the tutorial done again at once.
+    - `/cg wipe` rebuilds the profile from the template in place, keeps `ProcessedReceipts` (a purchase Roblox delivers again is never granted twice), and sets `FirstJoinAt`, `LastJoinAt` and `Sessions`.
+  - **Engine difference:** `TextChatCommand.DeliverMessage` (in the docs checked in task 1) doesn't exist in the Studio used today. Without it, `Triggered` already received the full message, and the sender's client got no `MessageReceived` for it, so it wasn't posted to the chat. The code sets the property only where it exists.
+  - **Studio Play Solo on the fresh store `PlayerData_Test6`** (it keeps your real DEV profile untouched; `Config.Game.ProfileStoreName` was reverted afterwards and is identical to the committed file):
+
+    | Check | Result |
+    |---|---|
+    | `/cg coins 500` | **Passed:** `coins set to 500`, StateSync coins 0 → 500, toast seen |
+    | `/cg seeds citrine 3` | **Passed:** `+3 Citrine (now 3)` (case-insensitive seed name) |
+    | `/cg tier 3` | **Passed** |
+    | `/cg coins -5` | **Passed:** refused with "give a whole number from 0 to 1000000000"; nothing changed |
+    | `/cg daily reset` | **Passed** |
+    | `/cg ready` right after planting | **Passed:** "1 crystal(s) ready", READY! shown at once (an earlier try with nothing growing correctly reported 0) |
+    | `/cg tutorial reset`, then `/cg wipe` | **Passed:** each restarted the tutorial at step 1. After the wipe: 0 coins, no crystals, 6 unlocked pedestals (3 + Extra Pedestals) |
+    | Every command toasted "Admin: …" | **Passed** (your check) |
+    | **Ad refused during the tutorial** (batch 5 open item) | **Passed:** `RequestAd("Luck")` at tutorial step 1 → `[Ad] … Luck refused: tutorial`, no ad shown |
+    | **Tutorial bubble vs the HUD** (batch 4 open item) | **Passed:** you played the tutorial through (steps 1–8 logged) and the bubble never hid behind the HUD |
+
+    **Test note:** the first `/cg` tries went nowhere because they were typed in a leftover window of the task 4 session (old code, no command). Close every test session before a new one.
+  - **Not checked yet:** the owner-only rule and the "no command in live" rule on published servers; both are checked when DEV and live are published (tasks 9–10).
+  - Tests **282 passed, 0 failed**; StyLua clean; `rojo build` succeeds.
+  - **Leftover:** `PlayerData_Test6` now holds a wiped test profile at tutorial step 1. With `/cg wipe` and `/cg tutorial reset`, a new store is no longer needed for fresh-profile tests in Studio.
+
+    **Still open from tasks 2 and 2b:** the Odds row with both boosts. (The tutorial's world bubble near the HUD passed in task 5.) The Odds check (needs a Surge window, :00–:04 UTC, while a Luck Boost runs).
 
 ## Findings
 

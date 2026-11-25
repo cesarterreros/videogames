@@ -192,6 +192,8 @@ return {
 	["Toast.Unavailable"] = "Sorry, this item is unavailable in your region",
 	["Toast.AutoOn"] = "Auto Shatter on: ready crystals shatter and replant while you play",
 	["Toast.AutoOff"] = "Auto Shatter off",
+	-- Batch 6: the dev-only /cg admin command's reply (Studio and the DEV experience only; the detail is English).
+	["Admin.Reply"] = "Admin: {text}",
 	-- Hub stalls
 	["Stall.SeedShop"] = "Seed Shop",
 	["Stall.Upgrades"] = "Upgrades",
