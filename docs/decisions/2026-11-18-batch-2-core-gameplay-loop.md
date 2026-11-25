@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18. Built and verified 2026-11-18 (Studio Play Solo, 2-player local server, Device Simulator, phone stress test and session lock on the published DEV experience). See Outcome.
 
+## Summary
+
+- **What:** the core loop: the map, your own cave, planting a seed on a pedestal, crystals growing (also offline), and shattering for coins.
+- **Decided:** a Studio-only top-up to 5 Quartz; "Plant" uses the lowest seed until batch 4's picker; an in-world countdown label and floating "+coins".
+- **Result:** done 2026-11-18. **93 tests pass.** Checked in Play Solo, a 2-player server, the Device Simulator and on your phone: stress mode with 78 crystals ran at **57–60 FPS**, and the session lock passed PC → phone.
+- **Noticed:** the caves were very dark, which led to the [cave brightness](2026-11-18-cave-brightness-setting.md) record.
+
 ## Context
 
 Batch 1 ([record](2026-11-18-batch-1-project-data-setup.md)) is done and committed (`db27909` on `batch-1-setup`):

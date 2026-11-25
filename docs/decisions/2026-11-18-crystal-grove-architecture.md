@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18.
 
+## Summary
+
+- **What:** how the game is built, so every batch follows the same structure: Services (server) and Controllers (client), pure Logic and Config modules with **no `require`** so Lune tests and the game load them the same way.
+- **Decided:** ProfileStore (copied into the repo) for session-locked player data; the map is built by code at server start; crystals are rendered on each client from pedestal attributes.
+- **Failure rules:** data that won't load kicks the player and never overwrites; actions before load are ignored; bad or spammed remote calls are dropped silently and counted; all text comes from one string table.
+- **Not included:** cross-server messaging, Wally packages, CI, translations.
+
 ## Context
 
 The approved specs fix what the game does:

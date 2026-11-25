@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18. Built and verified 2026-11-21 (see Outcome); committed as `1d7b489` on `batch-4-ui-onboarding`, pushed.
 
+## Summary
+
+- **What:** everything on screen: the HUD and every panel, the seed picker, tap-to-shatter, Shatter All, hub stalls and teleports, toasts, sounds and music, and the 60-second tutorial with its analytics funnel.
+- **Decided:** emoji as icons; UI built in code with plain Instances (no UI library); the tutorial tested with temporary profile stores.
+- **Result:** done 2026-11-21. **179 tests pass.** A new player finished the tutorial in **64.2 s** (target 75 s) in the Device Simulator; layouts checked on 3 phone sizes and on your phone.
+- **Open items passed to batch 6:** labels behind the HUD's top row near screen corners; Daily/Goals dots during the tutorial.
+
 ## Context
 
 After batch 3 ([record](2026-11-18-batch-3-progression-and-saving.md)), all game systems work but can only be used through command-bar remotes. This batch builds **everything the player sees on screen**:

@@ -4,6 +4,11 @@ This folder keeps the specification of every feature in this project, one dated 
 
 The project is a Roblox experience, **Crystal Grove**, built with Rojo + VS Code. Source lives in [roblox/](../../roblox/).
 
+## Record conventions
+
+- **Summary first:** every record has a `## Summary` section right after its `Status:` line: 3–5 bullets on what it covers, what was decided, and the result or current status (test count, where it was checked, what passes to a later batch). Write it with the plan, and update it when the Status changes or the Outcome is added.
+- **Index:** every new record gets one line in [INDEX.md](INDEX.md) (date, topic, file, status), and that line is updated whenever the record's status changes.
+
 ## Build and tests
 
 - **Build / sync:** `rojo serve` from `roblox/` while Roblox Studio is open with the Rojo plugin connected. `rojo build -o CrystalGrove.rbxlx` produces a place file.

@@ -2,6 +2,12 @@
 
 Status: approved 2026-11-18; re-approved 2026-11-21 with the task 1 values and lighter cave surfaces (Decision 4).
 
+## Summary
+
+- **What:** cave lighting values you can tune as the developer, plus a ☀ button that lets each player pick Dark, Normal or Bright, saved in `Settings.Brightness`.
+- **Decided:** Normal is the default; the setting is added to profile version 1 with no migration; cave surfaces are about 2.5× lighter, because lighting alone couldn't brighten near-black walls.
+- **Result:** done 2026-11-21. **104 tests pass.** A client-side Lighting change stays on that one client (proved with 2 players); the saved level loads on phone and PC; stress FPS 57–58 at every level.
+
 ## Context
 
 In batch 2's verification you saw that **the caves are very dark**: outside the crystals' glow, the pedestals and avatars are barely visible ([batch 2 record → Studio verification](2026-11-18-batch-2-core-gameplay-loop.md)). You asked to control the darkness before batch 3, both as the developer and as a player setting (your choice, 2026-11-18).

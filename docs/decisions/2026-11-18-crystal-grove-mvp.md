@@ -2,6 +2,14 @@
 
 Status: approved 2026-11-18.
 
+## Summary
+
+- **What:** the product spec for Crystal Grove, a Grow & Collect incremental game. Players grow glowing crystals in their own cave, shatter them for coins, buy rarer seeds and pedestals, hunt mutations, and compete on a weekly **Biggest Crystal** leaderboard.
+- **Rules you set:** Rojo + VS Code; procedural art only; ages 9–15 core with icon-heavy UI; **money may make crystals grow faster, never bigger**; ship a small polished loop.
+- **Decided:** shattering sells instantly; overgrowth kept (+10%/h after ready, max +50%); leaderboard prizes deferred to v1.1; servers fixed at 6 players / 6 caves.
+- **Amendment:** any odds in titles, thumbnails or ads must match `Config.Rolls` ("1 in 10,000 Crystal" withdrawn).
+- **Not in v1:** trading, pets, rebirth, a second currency, translations, admin panel. Rewarded ads can't run on day 1 (Roblox needs 2,000 monthly visitors).
+
 ## Context
 
 You are starting a new Roblox game from an empty repository ([roblox/](../../roblox/) has no files yet). You chose the **Grow & Collect Incremental** genre and the **Crystal Grove** idea: players grow glowing crystals in their own cave, shatter them for coins, buy rarer seeds and more pedestals, hunt rare mutations, and compete on a weekly **Biggest Crystal** leaderboard.

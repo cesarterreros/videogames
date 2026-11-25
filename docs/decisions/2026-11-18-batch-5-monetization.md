@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18. **Done 2026-11-22:** tasks 0–13 complete; see **Outcome** at the end (findings T1–T5 go to batch 6). Committed as `57dec18` (tasks 0–12) and `4b26e8a` (task 13) on `batch-5-monetization`, with this status as `22d05b5`; pushed, and pull request #5 into `batch-1-setup` merged on 2026-11-22.
 
+## Summary
+
+- **What:** the [monetization spec](2026-11-18-crystal-grove-monetization.md) built: 5 passes, 10 developer products, double-grant-safe receipts, 3 rewarded-ad placements hidden until ads are available, a one-per-session offer, the store UI, and paid-random-items handling.
+- **Decided:** ad requests count toward caps even if closed early; product IDs are kept per experience (`IdsByGameId`); prices are read with `GetProductInfoAsync`.
+- **Result:** done 2026-11-22, PR #5 merged. **239 tests pass.** A real 9 R$ purchase on your phone was granted once and not again on rejoin.
+- **Passed to batch 6:** findings T1–T5 (offer dropped while Daily was open, button labels, Finish now near the end, funnel order). Live pass and product IDs don't exist yet.
+
 ## Context
 
 After batch 4 ([record](2026-11-18-batch-4-ui-and-onboarding.md)), the game is fully playable for free. This batch implements the approved [monetization spec](2026-11-18-crystal-grove-monetization.md) exactly:

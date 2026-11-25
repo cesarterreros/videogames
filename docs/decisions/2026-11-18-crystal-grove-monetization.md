@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18.
 
+## Summary
+
+- **What:** what is sold, where it is offered, and how purchases are validated. No code; batch 5 builds it.
+- **Items:** 5 game passes (99–299 R$), developer products (9–249 R$, Starter Pack 49 R$), and rewarded-ad rewards that are always also sold in the shop and hidden until ads are available.
+- **Safety:** `ProcessReceipt` records each purchase ID to stop double grants; never grant from `PromptProductPurchaseFinished`; prices are read from Roblox, never hard-coded (Managed Pricing).
+- **Decided:** instant-grown crystals don't count for the leaderboard; coin-feeding products are hidden for players with `ArePaidRandomItemsRestricted`; odds are shown everywhere.
+
 ## Context
 
 The approved MVP spec, [2026-11-18-crystal-grove-mvp.md](2026-11-18-crystal-grove-mvp.md), defines the game loop (plant → grow → shatter → buy) and reserves UI slots for monetization. You set three rules: passes must exist **before launch**, rewarded ads must be a real mechanic, and **money may make crystals grow faster but never bigger**. This spec defines what is sold, where it is offered, and how it is validated. It writes no code; it is implemented in batch 5.

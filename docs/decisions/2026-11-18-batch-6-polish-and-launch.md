@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18; plan changes A–J (from batch 5's findings and earlier records) confirmed by you on 2026-11-24. **In progress** on `batch-6-polish-launch`: tasks 0–5 done (2b included; its tutorial-bubble and both-boosts Odds checks move to later tasks); plan change K pending (before task 9); see **Progress** and **Findings**.
 
+## Summary
+
+- **What:** the last batch: polish (coin fly, shake, glow ring, lighting, cave decoration, graphics profiles), an analytics audit, a fuzz test of every remote, a dev-only admin command, the launch checklist, and publishing to a new live experience.
+- **Decided:** the admin command is off in live (allowlist: Studio, or the DEV universe and its owner); the fuzz script lives outside the Rojo project in `roblox/dev/`; you switch the game to Public yourself once the checklist is all ✅. Plan changes A–J (from batch 5's findings) confirmed 2026-11-24.
+- **Status:** in progress. Tasks 0–5 done (polish, lighting, fuzz review, admin command). Next: analytics audit (6), checklist (7), store listing and thumbnails (8), live setup (9), phone playtest (10), final review (11).
+- **Pending decision, plan change K (before task 9):** under current Roblox rules the live game starts for age-checked **16+ players only**; reaching all ages needs ID verification, the full questionnaire, a 1,000 R$ refundable fee, and 100 engaged 16+ plays within 60 days.
+
 ## Context
 
 After batch 5 ([record](2026-11-18-batch-5-monetization.md)), the game is complete: the loop, progression, UI, tutorial and monetization all work in the **dev** experience. This last batch makes it **feel good, safe and measurable**, then **publishes it** to a new **live** experience:

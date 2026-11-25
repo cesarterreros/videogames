@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18. Implemented and verified 2026-11-21; committed as `c0d07d3` on branch `batch-3-progression` (pushed) and opened as a pull request into `batch-1-setup`.
 
+## Summary
+
+- **What:** progression and retention: seed shop and tier unlocks, pedestal and Growth Lamp upgrades, Crystal Codex, 7-day streak and daily goals, friend bonus, rare-find announcements, the hourly Crystal Surge, and the weekly Biggest Crystal board in the hub.
+- **Decided:** the Surprise Seed is the next tier (not random); goal rewards scale with your highest seed; the Growth Lamp affects only new plantings; leaderboard writes are budget-checked, reads aren't.
+- **Result:** done 2026-11-21. **154 tests pass.** Checked in Play Solo, a 2-player server, the Device Simulator and on the published DEV experience.
+- **Lesson:** `BindableEvent` arguments are copies; change profiles only through `DataService:GetData`.
+
 ## Context
 
 After batch 2 ([record](2026-11-18-batch-2-core-gameplay-loop.md)), players can plant, grow and shatter crystals in their own cave, but coins have nothing to buy and there is no reason to come back tomorrow. This batch adds the **progression and retention systems** from the [MVP spec](2026-11-18-crystal-grove-mvp.md) ("Player progression" and "Retention hooks"):

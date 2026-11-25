@@ -2,6 +2,13 @@
 
 Status: approved 2026-11-18. Verified in Studio Play Solo on the dev experience 2026-11-18; the open 2-player, `[Remote] rejected` and phone session-lock checks passed in batch 2's verification (see its Outcome).
 
+## Summary
+
+- **What:** the project skeleton: Rojo project, player profiles with session locking (ProfileStore), all remotes behind the security layer, balance numbers in config, Lune unit tests. No gameplay.
+- **Result:** done 2026-11-18. **64 tests pass.** In Play Solo the profile saved and reloaded (sessions 1 → 2 → 3), and bad or spammed remote calls changed no data.
+- **Correction found:** Studio without API access warns instead of kicking.
+- **Closed later:** the 2-player, `[Remote] rejected` and phone session-lock checks passed in batch 2.
+
 ## Context
 
 This is the first of the six implementation batches. It follows the approved [architecture](2026-11-18-crystal-grove-architecture.md), [MVP](2026-11-18-crystal-grove-mvp.md) and [monetization](2026-11-18-crystal-grove-monetization.md) specs. The repository has no code yet: [roblox/](../../roblox/) is empty.
